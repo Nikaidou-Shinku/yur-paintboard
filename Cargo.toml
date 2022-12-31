@@ -2,9 +2,17 @@
 name = "yur-paintboard"
 version = "0.1.0"
 edition = "2021"
+default-run = "yur-paintboard"
 
 [dependencies]
+uuid = "1.2.2"
+chrono = "0.4.23"
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.91"
 futures = "0.3.25"
+tokio = { version = "1.23.0", features = ["macros", "sync"] }
+reqwest = "0.11.13"
+axum = { version = "0.6.1", features = ["ws"] }
 
 [dependencies.sea-orm]
 version = "0.10.6"

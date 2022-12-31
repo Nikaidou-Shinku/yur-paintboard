@@ -1,7 +1,8 @@
 pub use sea_orm_migration::prelude::*;
 
-mod m20221231_000001_create_user_table;
-mod m20221231_000002_create_board_table;
+mod m20221231_000001_create_auth_table;
+mod m20221231_000002_create_session_table;
+mod m20221231_000003_create_board_table;
 
 pub struct Migrator;
 
@@ -9,8 +10,9 @@ pub struct Migrator;
 impl MigratorTrait for Migrator {
   fn migrations() -> Vec<Box<dyn MigrationTrait>> {
     vec![
-      Box::new(m20221231_000001_create_user_table::Migration),
-      Box::new(m20221231_000002_create_board_table::Migration),
+      Box::new(m20221231_000001_create_auth_table::Migration),
+      Box::new(m20221231_000002_create_session_table::Migration),
+      Box::new(m20221231_000003_create_board_table::Migration),
     ]
   }
 }

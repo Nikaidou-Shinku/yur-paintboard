@@ -9,16 +9,14 @@ impl MigrationTrait for Migration {
     manager
       .create_table(
         Table::create()
-          .table(User::Table)
+          .table(Board::Table)
           .if_not_exists()
-          .col(
-            ColumnDef::new(User::Uid)
-              .integer()
-              .not_null()
-              .primary_key()
-          )
-          .col(ColumnDef::new(User::LuoguToken).uuid())
-          .col(ColumnDef::new(User::PaintToken).uuid())
+          .col(ColumnDef::new(Board::X).integer().not_null())
+          .col(ColumnDef::new(Board::Y).integer().not_null())
+          .col(ColumnDef::new(Board::Color).string_len(7).not_null())
+          .col(ColumnDef::new(Board::Uid).integer().not_null())
+          .col(ColumnDef::new(Board::Time).timestamp().not_null())
+          .primary_key(Index::create().col(Board::X).col(Board::Y))
           .to_owned()
       ).await
   }
@@ -27,15 +25,17 @@ impl MigrationTrait for Migration {
     manager
       .drop_table(
         Table::drop()
-          .table(User::Table).to_owned()
+          .table(Board::Table).to_owned()
       ).await
   }
 }
 
 #[derive(Iden)]
-enum User {
+enum Board {
   Table,
+  X,
+  Y,
+  Color,
   Uid,
-  LuoguToken,
-  PaintToken,
+  Time,
 }

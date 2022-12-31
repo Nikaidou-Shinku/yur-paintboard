@@ -9,14 +9,16 @@ impl MigrationTrait for Migration {
     manager
       .create_table(
         Table::create()
-          .table(Board::Table)
+          .table(Auth::Table)
           .if_not_exists()
-          .col(ColumnDef::new(Board::X).integer().not_null())
-          .col(ColumnDef::new(Board::Y).integer().not_null())
-          .col(ColumnDef::new(Board::Color).string().not_null())
-          .col(ColumnDef::new(Board::Uid).integer().not_null())
-          .col(ColumnDef::new(Board::Time).timestamp().not_null())
-          .primary_key(Index::create().col(Board::X).col(Board::Y))
+          .col(
+            ColumnDef::new(Auth::Uid)
+              .integer()
+              .not_null()
+              .primary_key()
+          )
+          .col(ColumnDef::new(Auth::Session).uuid().not_null())
+          .col(ColumnDef::new(Auth::LuoguToken).uuid().not_null())
           .to_owned()
       ).await
   }
@@ -25,17 +27,15 @@ impl MigrationTrait for Migration {
     manager
       .drop_table(
         Table::drop()
-          .table(Board::Table).to_owned()
+          .table(Auth::Table).to_owned()
       ).await
   }
 }
 
 #[derive(Iden)]
-enum Board {
+enum Auth {
   Table,
-  X,
-  Y,
-  Color,
   Uid,
-  Time,
+  Session,
+  LuoguToken,
 }
