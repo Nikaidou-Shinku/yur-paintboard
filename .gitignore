@@ -1,0 +1,6 @@
+# Ignore Cargo target directories
+/target
+/migration/target
+
+# Ignore the SQLite database file
+/data.db

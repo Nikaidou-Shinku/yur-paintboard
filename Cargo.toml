@@ -1,0 +1,15 @@
+[package]
+name = "yur-paintboard"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures = "0.3.25"
+
+[dependencies.sea-orm]
+version = "0.10.6"
+features = [
+  "sqlx-sqlite",
+  "runtime-tokio-rustls",
+  "macros",
+]
