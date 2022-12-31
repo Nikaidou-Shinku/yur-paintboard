@@ -7,7 +7,7 @@ use futures::{StreamExt, SinkExt};
 use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, ActiveValue};
 use axum::{extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}}, response::Response};
 
-use crate::{AppState, channel::ChannelMsg, paint::{Paint, color_to_hex}};
+use crate::{AppState, channel::ChannelMsg, paint::{Paint, color_to_hex, hex_to_bin}};
 use yur_paintboard::entities::{prelude::*, session, board};
 
 pub async fn ws(
@@ -61,11 +61,11 @@ async fn handle_ws(
   }
 
   let board = board.unwrap().iter()
-    .map(|pixel| Paint::from(pixel))
-    .collect::<Vec<Paint>>();
-  let board_msg = serde_json::to_string(&board).unwrap();
+    .map(|pixel| hex_to_bin(&pixel.color))
+    .flatten()
+    .collect::<Vec<u8>>();
 
-  ws_out.send(Message::Text(board_msg)).await.unwrap();
+  ws_out.send(Message::Binary(board)).await.unwrap();
 
   let read_task = async {
     loop {
