@@ -53,10 +53,8 @@ async fn handle_ws(
       Message::Text(r#"{"type":"Auth","code":0}"#.to_string())
     ).await.unwrap();
 
-  let board = state.board
-    .lock().unwrap()
-    .iter()
-    .map(|pixel| hex_to_bin(&pixel.color))
+  let board = state.board.iter()
+    .map(|pixel| hex_to_bin(&pixel.lock().unwrap().color))
     .flatten()
     .collect::<Vec<u8>>();
 
@@ -183,11 +181,11 @@ async fn handle_ws_in(
       };
 
       {
-        let mut board = state.board.lock().unwrap();
+        let mut pixel = state.board[idx as usize].lock().unwrap();
 
-        let same = board[idx as usize].color == new_paint.color;
+        let same = pixel.color == new_paint.color;
 
-        board[idx as usize] = new_paint;
+        *pixel = new_paint;
 
         if same { // Same color
           return None;

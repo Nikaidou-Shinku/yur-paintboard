@@ -17,8 +17,7 @@ use crate::save::save_board;
 pub struct AppState {
   db: DatabaseConnection,
   sender: Sender<ChannelMsg>,
-  last_board: Mutex<Vec<board::Model>>,
-  board: Mutex<Vec<board::Model>>,
+  board: Vec<Mutex<board::Model>>,
 }
 
 #[tokio::main]
@@ -32,11 +31,14 @@ async fn main() {
 
   let (sender, _) = broadcast::channel::<ChannelMsg>(65536);
 
+  let now_board = board.iter()
+    .map(|pixel| Mutex::new(pixel.clone()))
+    .collect();
+
   let init_state = AppState {
     db,
     sender,
-    last_board: Mutex::new(board.clone()),
-    board: Mutex::new(board),
+    board: now_board,
   };
 
   let shared_state = Arc::new(init_state);
@@ -53,7 +55,7 @@ async fn main() {
   let web_task = axum::Server::bind(&"127.0.0.1:2895".parse().unwrap())
     .serve(app.into_make_service());
 
-  let save_task = save_board(shared_state);
+  let save_task = save_board(shared_state, board);
 
   let (res, _) = futures::future::join(web_task, save_task).await;
 
