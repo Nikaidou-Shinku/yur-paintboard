@@ -1,7 +1,9 @@
+use uuid::Uuid;
+
 use crate::paint::Paint;
 
 #[derive(Clone, Debug)]
 pub enum ChannelMsg {
-  Close,
+  Close(Uuid),
   Paint(Paint),
 }

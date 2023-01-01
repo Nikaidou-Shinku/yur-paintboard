@@ -4,7 +4,7 @@ use uuid::Uuid;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use futures::{StreamExt, SinkExt};
-use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, ActiveValue};
+use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 use axum::{extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}}, response::Response};
 
 use crate::{AppState, channel::ChannelMsg, paint::{Paint, color_to_hex, hex_to_bin}};
@@ -53,19 +53,19 @@ async fn handle_ws(
       Message::Text(r#"{"type":"Auth","code":0}"#.to_string())
     ).await.unwrap();
 
-  let board = Board::find()
-    .all(&state.db).await;
-
-  if board.is_err() {
-    return;
-  }
-
-  let board = board.unwrap().iter()
+  let board = state.board
+    .lock().unwrap()
+    .iter()
     .map(|pixel| hex_to_bin(&pixel.color))
     .flatten()
     .collect::<Vec<u8>>();
 
-  ws_out.send(Message::Binary(board)).await.unwrap();
+  ws_out
+    .send(
+      Message::Binary(board)
+    ).await.unwrap();
+
+  let session = Uuid::new_v4();
 
   let read_task = async {
     loop {
@@ -86,7 +86,9 @@ async fn handle_ws(
       handle_ws_in(state.clone(), Some(uid), msg).await;
     }
 
-    state.sender.send(ChannelMsg::Close).unwrap();
+    state.sender.send(ChannelMsg::Close(session)).unwrap();
+
+    println!("[RD] {session} closed.");
   };
 
   let write_task = async {
@@ -102,15 +104,24 @@ async fn handle_ws(
       let msg = msg.unwrap();
 
       match msg {
-        ChannelMsg::Close => {
-          break;
+        ChannelMsg::Close(event) => {
+          if event == session {
+            break;
+          }
         },
         ChannelMsg::Paint(paint) => {
           let msg = serde_json::to_string(&WsMsg::Paint(paint)).unwrap();
-          ws_out.send(Message::Text(msg)).await.unwrap();
+          let res = ws_out.send(Message::Text(msg)).await;
+
+          if res.is_err() {
+            eprintln!("[WT] {session} send error!");
+            break;
+          }
         },
       }
     }
+
+    println!("[WT] {session} closed.");
   };
 
   futures::future::join(read_task, write_task).await;
@@ -153,25 +164,38 @@ async fn handle_ws_in(
       return ws_auth(state, token).await;
     },
     WsMsg::Paint(paint) => {
-      if uid.is_none() {
+      if uid.is_none() { // Not auth
         return None;
       }
 
-      let new_paint = board::ActiveModel {
-        x: ActiveValue::set(paint.x),
-        y: ActiveValue::set(paint.y),
-        color: ActiveValue::set(color_to_hex(paint.c)),
-        uid: ActiveValue::set(uid.unwrap()),
-        time: ActiveValue::set(Local::now()),
+      let idx = paint.x * 600 + paint.y;
+
+      if idx < 0 || idx >= 600000 { // Out of board
+        return None;
+      }
+
+      let new_paint = board::Model {
+        x: paint.x,
+        y: paint.y,
+        color: color_to_hex(paint.c),
+        uid: uid.unwrap(),
+        time: Local::now(),
       };
 
-      let res = Board::update(new_paint)
-        .exec(&state.db).await;
+      {
+        let mut board = state.board.lock().unwrap();
 
-      if res.is_ok() {
-        state.sender
-          .send(ChannelMsg::Paint(paint)).unwrap();
+        let same = board[idx as usize].color == new_paint.color;
+
+        board[idx as usize] = new_paint;
+
+        if same { // Same color
+          return None;
+        }
       }
+
+      state.sender
+        .send(ChannelMsg::Paint(paint)).unwrap();
 
       return None;
     },
