@@ -8,7 +8,7 @@ use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 use axum::{extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}}, response::Response};
 
 use crate::{AppState, channel::ChannelMsg, paint::{Paint, color_to_hex, hex_to_bin}};
-use yur_paintboard::entities::{prelude::*, session, board};
+use yur_paintboard::{entities::{prelude::*, session, board}, consts::{WIDTH, HEIGHT}};
 
 pub async fn ws(
   State(state): State<Arc<AppState>>,
@@ -53,15 +53,21 @@ async fn handle_ws(
       Message::Text(r#"{"type":"Auth","code":0}"#.to_string())
     ).await.unwrap();
 
+  println!("[WS] {uid} authenticated.");
+
   let board = state.board.iter()
     .map(|pixel| hex_to_bin(&pixel.lock().unwrap().color))
     .flatten()
     .collect::<Vec<u8>>();
 
+  println!("[WS] parse board for {uid}.");
+
   ws_out
     .send(
       Message::Binary(board)
     ).await.unwrap();
+
+  println!("[WS] send board for {uid}.");
 
   let session = Uuid::new_v4();
 
@@ -166,11 +172,15 @@ async fn handle_ws_in(
         return None;
       }
 
-      let idx = paint.x * 600 + paint.y;
-
-      if idx < 0 || idx >= 600000 { // Out of board
+      if paint.x < 0 || paint.x >= WIDTH.into() {
         return None;
       }
+
+      if paint.y < 0 || paint.y >= HEIGHT.into() {
+        return None;
+      }
+
+      let idx = paint.x * HEIGHT as i32 + paint.y;
 
       let new_paint = board::Model {
         x: paint.x,
@@ -213,6 +223,8 @@ async fn ws_auth(
   }
 
   let session = session.unwrap();
+
+  // TODO: check multiple connections
 
   match session {
     None => None,
