@@ -18,8 +18,13 @@ pub async fn ws_read(
   msg: Message,
 ) -> Option<i32> {
   let msg = msg.into_data();
+  let msg = msg.split_first();
 
-  let (opt, data) = msg.split_first().unwrap();
+  if msg.is_none() {
+    return None;
+  }
+
+  let (opt, data) = msg.unwrap();
 
   match opt {
     0xff => { // Auth
