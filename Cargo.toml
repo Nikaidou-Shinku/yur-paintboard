@@ -7,6 +7,7 @@ default-run = "yur-paintboard"
 [dependencies]
 uuid = "1.2.2"
 chrono = "0.4.23"
+zstd = "0.12.1+zstd.1.5.2"
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"
 futures = "0.3.25"

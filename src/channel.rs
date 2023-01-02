@@ -1,9 +1,9 @@
 use uuid::Uuid;
 
-use crate::paint::Paint;
+use yur_paintboard::pixel::Pixel;
 
 #[derive(Clone, Debug)]
 pub enum ChannelMsg {
   Close(Uuid),
-  Paint(Paint),
+  Paint(Pixel),
 }
