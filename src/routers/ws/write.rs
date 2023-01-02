@@ -52,7 +52,7 @@ pub async fn ws_write(
       }
 
       {
-        let ws_paints = ws_paints.lock().await;
+        let mut ws_paints = ws_paints.lock().await;
 
         if ws_paints.len() > 0 {
           let mut msg = vec![0xfa];
@@ -68,6 +68,8 @@ pub async fn ws_write(
             *ws_over.lock().await = true;
             break;
           }
+
+          ws_paints.clear();
         }
       }
 
