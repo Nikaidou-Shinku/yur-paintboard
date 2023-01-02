@@ -9,7 +9,7 @@ use axum::{extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}}, respons
 
 use self::{read::ws_read, write::ws_write};
 use crate::{AppState, channel::ChannelMsg};
-use yur_paintboard::pixel::hex_to_bin;
+use yur_paintboard::{pixel::hex_to_bin, consts::{WIDTH, HEIGHT}};
 
 pub async fn ws(
   State(state): State<Arc<AppState>>,
@@ -63,19 +63,18 @@ async fn handle_ws(
       Message::Binary(vec![0xfc]) // auth success
     ).await.unwrap();
 
-  let ws_session = Uuid::new_v4();
-
-  { // user connected ws
-    let mut user_ws = state.user_ws.lock().unwrap();
-    user_ws.insert(uid, Some(ws_session));
-  }
-
   println!("[WS] {uid} authenticated.");
 
-  let board = state.board.iter()
-    .map(|pixel| hex_to_bin(&pixel.lock().unwrap().color))
-    .flatten()
-    .collect::<Vec<u8>>();
+  let mut board = vec![0xfb];
+
+  for x in 0..WIDTH {
+    for y in 0..HEIGHT {
+      let pixel = state.board
+        .get(&(x, y)).unwrap()
+        .lock().unwrap();
+      board.extend_from_slice(&hex_to_bin(&pixel.color));
+    }
+  }
 
   // TODO: maybe more elegant way to do this
   let mut board = zstd::encode_all(board.as_slice(), 0).unwrap();
@@ -89,6 +88,8 @@ async fn handle_ws(
     ).await.unwrap();
 
   println!("[WS] send board for {uid}.");
+
+  let ws_session = Uuid::new_v4();
 
   let read_task = async {
     loop {
@@ -117,9 +118,4 @@ async fn handle_ws(
   let write_task = ws_write(state.clone(), ws_session, ws_out);
 
   futures::future::join(read_task, write_task).await;
-
-  { // user disconnected ws
-    let mut user_ws = state.user_ws.lock().unwrap();
-    user_ws.insert(uid, None);
-  }
 }

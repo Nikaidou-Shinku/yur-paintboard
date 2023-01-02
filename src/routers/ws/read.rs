@@ -69,20 +69,7 @@ async fn handle_auth(
 
   match session {
     None => None,
-    Some(session) => {
-      let uid = session.uid;
-
-      // TODO: ws multiple connections
-      // let user_ws = state.user_ws.lock().unwrap();
-
-      // if let Some(user_ws) = user_ws.get(&uid) {
-      //   if user_ws.is_some() {
-      //     return None; // already connected
-      //   }
-      // }
-
-      Some(uid)
-    },
+    Some(session) => Some(session.uid),
   }
 }
 
@@ -132,10 +119,10 @@ async fn handle_paint(
     time: Local::now(),
   };
 
-  let idx = x * HEIGHT + y;
-
   {
-    let mut pixel = state.board[idx as usize].lock().unwrap();
+    let mut pixel = state.board
+      .get(&(x, y)).unwrap()
+      .lock().unwrap();
 
     let same = pixel.color == new_pixel.color;
 

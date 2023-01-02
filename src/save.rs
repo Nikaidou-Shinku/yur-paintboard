@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap};
 
 use sea_orm::{ActiveValue, EntityTrait, sea_query::OnConflict};
 
@@ -7,7 +7,7 @@ use crate::AppState;
 
 pub async fn save_board(
   state: Arc<AppState>,
-  mut old_board: Vec<board::Model>,
+  mut old_board: HashMap<(u16, u16), board::Model>,
 ) {
   loop {
     // TODO(config)
@@ -18,17 +18,20 @@ pub async fn save_board(
 
     let mut tasks = vec![];
 
-    for (idx, pixel) in state.board.iter().enumerate() {
-      let pixel = pixel.lock().unwrap();
-      if old_board[idx] != *pixel {
+    for pixel in &state.board {
+      let old_pixel = old_board.get(pixel.0).unwrap();
+      let now_pixel = pixel.1.lock().unwrap();
+
+      if old_pixel.time != now_pixel.time {
         tasks.push(board::ActiveModel {
-          x: ActiveValue::set(pixel.x),
-          y: ActiveValue::set(pixel.y),
-          color: ActiveValue::set(pixel.color.clone()),
-          uid: ActiveValue::set(pixel.uid),
-          time: ActiveValue::set(pixel.time),
+          x: ActiveValue::set(now_pixel.x),
+          y: ActiveValue::set(now_pixel.y),
+          color: ActiveValue::set(now_pixel.color.clone()),
+          uid: ActiveValue::set(now_pixel.uid),
+          time: ActiveValue::set(now_pixel.time),
         });
-        old_board[idx] = pixel.clone();
+
+        old_board.insert(pixel.0.to_owned(), now_pixel.to_owned());
       }
     }
 
