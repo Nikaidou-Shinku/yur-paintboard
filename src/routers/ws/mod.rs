@@ -48,10 +48,14 @@ async fn handle_ws(
       break;
     }
 
-    ws_out
+    let res = ws_out
       .send(
         Message::Binary(vec![0xfd]) // auth failed
-      ).await.unwrap();
+      ).await;
+
+    if res.is_err() {
+      return;
+    }
   }
 
   ws_out

@@ -72,13 +72,14 @@ async fn handle_auth(
     Some(session) => {
       let uid = session.uid;
 
-      let user_ws = state.user_ws.lock().unwrap();
+      // TODO: ws multiple connections
+      // let user_ws = state.user_ws.lock().unwrap();
 
-      if let Some(user_ws) = user_ws.get(&uid) {
-        if user_ws.is_some() {
-          return None; // already connected
-        }
-      }
+      // if let Some(user_ws) = user_ws.get(&uid) {
+      //   if user_ws.is_some() {
+      //     return None; // already connected
+      //   }
+      // }
 
       Some(uid)
     },
@@ -112,12 +113,13 @@ async fn handle_paint(
     let now = Local::now();
     let mut user_paint = state.user_paint.lock().unwrap();
 
-    if let Some(last_paint) = user_paint.get(&uid) {
-      // TODO(config)
-      if (now - *last_paint) < chrono::Duration::milliseconds(100) {
-        return;
-      }
-    }
+    // TODO: paint interval
+    // if let Some(last_paint) = user_paint.get(&uid) {
+    //   // TODO(config)
+    //   if (now - *last_paint) < chrono::Duration::milliseconds(100) {
+    //     return;
+    //   }
+    // }
 
     user_paint.insert(uid, now);
   }
