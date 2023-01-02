@@ -65,7 +65,7 @@ async fn handle_ws(
 
   println!("[WS] {uid} authenticated.");
 
-  let mut board = vec![0xfb];
+  let mut board = vec![];
 
   for x in 0..WIDTH {
     for y in 0..HEIGHT {
