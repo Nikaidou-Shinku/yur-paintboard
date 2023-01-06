@@ -9,8 +9,10 @@ use tokio::sync::broadcast::{self, Sender};
 use sea_orm::{Database, DatabaseConnection, EntityTrait};
 use axum::{Router, routing::{get, post}};
 
-use crate::{save::{save_board, save_actions}, channel::ChannelMsg};
+use tracing_subscriber::{prelude::*, filter};
+
 use yur_paintboard::entities::{prelude::*, board, paint};
+use crate::{save::{save_board, save_actions}, channel::ChannelMsg};
 
 pub struct AppState {
   db: DatabaseConnection,
@@ -22,9 +24,17 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
-  tracing_subscriber::fmt()
-    .with_max_level(tracing::Level::INFO)
-    .with_target(false)
+  let target_layer = filter::Targets::new()
+    .with_target("sqlx", tracing::Level::WARN)
+    .with_target("yur_paintboard", tracing::Level::INFO);
+
+  let fmt_layer = tracing_subscriber::fmt::layer()
+    .with_target(false);
+
+  tracing_subscriber::registry()
+    .with(target_layer)
+    .with(filter::LevelFilter::INFO)
+    .with(fmt_layer)
     .init();
 
   let db = Database::connect("sqlite:./data.db?mode=rwc").await
