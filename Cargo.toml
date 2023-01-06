@@ -5,6 +5,10 @@ authors = ["yurzhang <yurzhang@163.com>"]
 edition = "2021"
 default-run = "yur-paintboard"
 
+[profile.release]
+strip = true
+lto = true
+
 [dependencies]
 uuid = "1.2.2"
 chrono = "0.4.23"
