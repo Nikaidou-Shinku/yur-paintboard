@@ -6,8 +6,8 @@ use sea_orm::{ActiveValue, EntityTrait, sea_query::OnConflict};
 use reqwest::StatusCode;
 use axum::{extract::State, Json};
 
-use crate::{AppState, routers::ErrOr};
 use yur_paintboard::entities::{prelude::*, auth};
+use crate::{AppState, routers::ErrOr};
 
 #[derive(Deserialize)]
 pub struct AuthPayload {
