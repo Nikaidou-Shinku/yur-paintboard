@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 use chrono::Local;
-use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, ActiveValue};
 use axum::extract::ws::Message;
 
 use yur_paintboard::{
   consts::{WIDTH, HEIGHT},
-  entities::{prelude::*, session, board},
+  entities::{prelude::*, session, board, paint},
   pixel::{color_to_hex, Pixel},
 };
 use crate::{AppState, channel::ChannelMsg};
@@ -111,15 +111,17 @@ async fn handle_paint(
     user_paint.insert(uid, now);
   }
 
+  let hex_color = color_to_hex(color);
+
   let new_pixel = board::Model {
     x: x.into(),
     y: y.into(),
-    color: color_to_hex(color),
+    color: hex_color.clone(),
     uid,
     time: now,
   };
 
-  {
+  let same = { // same color
     let mut pixel = state.board
       .get(&(x, y)).unwrap()
       .lock().unwrap();
@@ -128,10 +130,23 @@ async fn handle_paint(
 
     *pixel = new_pixel;
 
-    if same { // Same color
-      return;
-    }
-  }
+    same
+  };
 
-  state.sender.send(ChannelMsg::Paint(Pixel { x, y, color })).unwrap();
+  let new_action = paint::ActiveModel {
+    x: ActiveValue::set(x.into()),
+    y: ActiveValue::set(y.into()),
+    color: ActiveValue::set(hex_color),
+    uid: ActiveValue::set(uid),
+    time: ActiveValue::set(now),
+    ..Default::default()
+  };
+
+  state.actions
+    .lock().unwrap()
+    .push(new_action);
+
+  if !same {
+    state.sender.send(ChannelMsg::Paint(Pixel { x, y, color })).unwrap();
+  }
 }

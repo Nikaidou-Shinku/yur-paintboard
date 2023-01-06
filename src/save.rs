@@ -2,7 +2,7 @@ use std::{sync::Arc, collections::HashMap};
 
 use sea_orm::{ActiveValue, EntityTrait, sea_query::OnConflict};
 
-use yur_paintboard::entities::{prelude::*, board};
+use yur_paintboard::entities::{prelude::*, board, paint};
 use crate::AppState;
 
 pub async fn save_board(
@@ -61,5 +61,47 @@ pub async fn save_board(
     }
 
     println!("[BD] Save board success!");
+  }
+}
+
+pub async fn save_actions(
+  state: Arc<AppState>,
+) {
+  loop {
+    // TODO(config)
+    // 8 minutes
+    tokio::time::sleep(std::time::Duration::from_secs(480)).await;
+
+    println!("[AT] Start saving actions...");
+
+    let actions = {
+      let mut actions = state.actions
+        .lock().unwrap();
+
+      let res = actions.clone();
+
+      actions.clear();
+
+      res
+    };
+
+    println!("[AT] Actions num: {}", actions.len());
+
+    // TODO(config)
+    let tasks = actions.chunks(600) // pack 600 actions per task
+      .map(|chunk| chunk.to_owned())
+      .collect::<Vec<Vec<paint::ActiveModel>>>();
+
+    for task in tasks {
+      let res = Paint::insert_many(task)
+        .exec(&state.db).await;
+
+      if res.is_err() {
+        eprintln!("[AT] Save actions failed!");
+      }
+    }
+
+
+    println!("[AT] Save actions success!");
   }
 }

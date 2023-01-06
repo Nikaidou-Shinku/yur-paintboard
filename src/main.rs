@@ -9,14 +9,15 @@ use tokio::sync::broadcast::{self, Sender};
 use sea_orm::{Database, DatabaseConnection, EntityTrait};
 use axum::{Router, routing::{get, post}};
 
-use crate::{save::save_board, channel::ChannelMsg};
-use yur_paintboard::entities::{prelude::*, board};
+use crate::{save::{save_board, save_actions}, channel::ChannelMsg};
+use yur_paintboard::entities::{prelude::*, board, paint};
 
 pub struct AppState {
   db: DatabaseConnection,
   sender: Sender<ChannelMsg>,
   board: HashMap<(u16, u16), Mutex<board::Model>>,
   user_paint: Mutex<HashMap<i32, DateTime<Local>>>,
+  actions: Mutex<Vec<paint::ActiveModel>>,
 }
 
 #[tokio::main]
@@ -45,6 +46,7 @@ async fn main() {
     sender,
     board: now_board,
     user_paint: Mutex::new(HashMap::new()),
+    actions: Mutex::new(vec![]),
   };
   let shared_state = Arc::new(init_state);
 
@@ -59,11 +61,17 @@ async fn main() {
   let web_task = axum::Server::bind(&"127.0.0.1:2895".parse().unwrap())
     .serve(app.into_make_service());
 
-  let save_task = save_board(shared_state, old_board);
+  let save_board_task = save_board(shared_state.clone(), old_board);
+  let save_actions_task = save_actions(shared_state);
 
   println!("[MN] Listening on 127.0.0.1:2895...");
 
-  let (res, _) = futures::future::join(web_task, save_task).await;
+  let (res, _, _) =
+    futures::future::join3(
+      web_task,
+      save_board_task,
+      save_actions_task,
+    ).await;
 
   res.unwrap();
 }
