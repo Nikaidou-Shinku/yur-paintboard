@@ -9,7 +9,6 @@ use axum::{extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}}, respons
 
 use tracing::Instrument;
 
-use yur_paintboard::{pixel::hex_to_bin, consts::{WIDTH, HEIGHT}};
 use crate::{AppState, channel::ChannelMsg};
 use self::{read::ws_read, write::ws_write};
 
@@ -44,7 +43,7 @@ async fn handle_ws(
 
     let msg = msg.unwrap();
 
-    let res = ws_read(state.clone(), None, msg).await;
+    let res = ws_read(state.clone(), None, None, msg).await;
 
     if let Some(res) = res {
       uid = res;
@@ -69,29 +68,6 @@ async fn handle_ws(
 
   tracing::info!("Authenticated.");
 
-  // TODO: only parse board when needed
-  // TODO: maybe more elegant way to do this
-  let mut board = vec![];
-
-  for x in 0..WIDTH {
-    for y in 0..HEIGHT {
-      let pixel = state.board
-        .get(&(x, y)).unwrap()
-        .lock().unwrap();
-      board.extend_from_slice(&hex_to_bin(&pixel.color));
-    }
-  }
-
-  // TODO(config): compress level
-  let mut board = zstd::encode_all(board.as_slice(), 0).unwrap();
-  board.insert(0, 0xfb);
-
-  tracing::info!("Parse board.");
-
-  ws_out.send(Message::Binary(board)).await.unwrap();
-
-  tracing::info!("Send board.");
-
   let ws_session = Uuid::new_v4();
 
   let read_task = async {
@@ -110,7 +86,7 @@ async fn handle_ws(
 
       let msg = msg.unwrap();
 
-      ws_read(state.clone(), Some(uid), msg).await;
+      ws_read(state.clone(), Some(uid), Some(ws_session), msg).await;
     }
 
     state.sender.send(ChannelMsg::Close(ws_session)).unwrap();

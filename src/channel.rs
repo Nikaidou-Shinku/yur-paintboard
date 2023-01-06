@@ -6,4 +6,5 @@ use yur_paintboard::pixel::Pixel;
 pub enum ChannelMsg {
   Close(Uuid),
   Paint(Pixel),
+  Board(Uuid),
 }

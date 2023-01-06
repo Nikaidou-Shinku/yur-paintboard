@@ -87,7 +87,7 @@ pub async fn save_actions(
       res
     };
 
-    tracing::info!(len = actions.len(), "Count actions");
+    tracing::info!(num = actions.len(), "Count actions");
 
     // TODO(config)
     let tasks = actions.chunks(600) // pack 600 actions per task

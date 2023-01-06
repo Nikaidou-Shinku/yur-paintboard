@@ -15,6 +15,7 @@ use crate::{AppState, channel::ChannelMsg};
 pub async fn ws_read(
   state: Arc<AppState>,
   uid: Option<i32>,
+  ws_session: Option<Uuid>,
   msg: Message,
 ) -> Option<i32> {
   let msg = msg.into_data();
@@ -37,6 +38,13 @@ pub async fn ws_read(
     0xfe => { // Paint
       if let Some(uid) = uid {
         handle_paint(state, uid, data).await;
+      }
+
+      None
+    },
+    0xf9 => { // Board
+      if let Some(ws_session) = ws_session {
+        handle_board(state, ws_session);
       }
 
       None
@@ -147,6 +155,15 @@ async fn handle_paint(
     .push(new_action);
 
   if !same {
-    state.sender.send(ChannelMsg::Paint(Pixel { x, y, color })).unwrap();
+    state.sender
+      .send(ChannelMsg::Paint(Pixel { x, y, color })).unwrap();
   }
+}
+
+fn handle_board(
+  state: Arc<AppState>,
+  ws_session: Uuid,
+) {
+  state.sender
+    .send(ChannelMsg::Board(ws_session)).unwrap();
 }
