@@ -5,12 +5,12 @@ use chrono::Local;
 use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 use axum::extract::ws::Message;
 
-use crate::{AppState, channel::ChannelMsg};
 use yur_paintboard::{
   consts::{WIDTH, HEIGHT},
   entities::{prelude::*, session, board},
   pixel::{color_to_hex, Pixel},
 };
+use crate::{AppState, channel::ChannelMsg};
 
 pub async fn ws_read(
   state: Arc<AppState>,
@@ -96,17 +96,17 @@ async fn handle_paint(
 
   let color = (data[4], data[5], data[6]);
 
+  let now = Local::now();
+
   { // check interval
-    let now = Local::now();
     let mut user_paint = state.user_paint.lock().unwrap();
 
-    // TODO: paint interval
-    // if let Some(last_paint) = user_paint.get(&uid) {
-    //   // TODO(config)
-    //   if (now - *last_paint) < chrono::Duration::milliseconds(100) {
-    //     return;
-    //   }
-    // }
+    if let Some(last_paint) = user_paint.get(&uid) {
+      // TODO(config)
+      if (now - *last_paint) < chrono::Duration::milliseconds(500) {
+        return;
+      }
+    }
 
     user_paint.insert(uid, now);
   }
@@ -116,7 +116,7 @@ async fn handle_paint(
     y: y.into(),
     color: color_to_hex(color),
     uid,
-    time: Local::now(),
+    time: now,
   };
 
   {
@@ -133,6 +133,5 @@ async fn handle_paint(
     }
   }
 
-  state.sender
-    .send(ChannelMsg::Paint(Pixel { x, y, color })).unwrap();
+  state.sender.send(ChannelMsg::Paint(Pixel { x, y, color })).unwrap();
 }

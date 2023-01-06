@@ -22,7 +22,7 @@ pub async fn save_board(
       let old_pixel = old_board.get(pixel.0).unwrap();
       let now_pixel = pixel.1.lock().unwrap();
 
-      if old_pixel.time != now_pixel.time {
+      if old_pixel.time != now_pixel.time { // is it accurate enough?
         tasks.push(board::ActiveModel {
           x: ActiveValue::set(now_pixel.x),
           y: ActiveValue::set(now_pixel.y),
@@ -56,7 +56,7 @@ pub async fn save_board(
         .exec(&state.db).await;
 
       if res.is_err() {
-        eprintln!("[BD] Update board failed!");
+        eprintln!("[BD] Save board failed!");
       }
     }
 

@@ -7,9 +7,9 @@ use uuid::Uuid;
 use futures::{StreamExt, SinkExt};
 use axum::{extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}}, response::Response};
 
-use self::{read::ws_read, write::ws_write};
-use crate::{AppState, channel::ChannelMsg};
 use yur_paintboard::{pixel::hex_to_bin, consts::{WIDTH, HEIGHT}};
+use crate::{AppState, channel::ChannelMsg};
+use self::{read::ws_read, write::ws_write};
 
 pub async fn ws(
   State(state): State<Arc<AppState>>,
@@ -48,23 +48,23 @@ async fn handle_ws(
       break;
     }
 
-    let res = ws_out
-      .send(
-        Message::Binary(vec![0xfd]) // auth failed
-      ).await;
+    let res = ws_out.send(Message::Binary(vec![0xfd])).await; // auth failed
 
     if res.is_err() {
       return;
     }
   }
 
-  ws_out
-    .send(
-      Message::Binary(vec![0xfc]) // auth success
-    ).await.unwrap();
+  let res = ws_out.send(Message::Binary(vec![0xfc])).await; // auth success
+
+  if res.is_err() {
+    return;
+  }
 
   println!("[WS] {uid} authenticated.");
 
+  // TODO: only parse board when needed
+  // TODO: maybe more elegant way to do this
   let mut board = vec![];
 
   for x in 0..WIDTH {
@@ -76,16 +76,13 @@ async fn handle_ws(
     }
   }
 
-  // TODO: maybe more elegant way to do this
+  // TODO(config): compress level
   let mut board = zstd::encode_all(board.as_slice(), 0).unwrap();
   board.insert(0, 0xfb);
 
   println!("[WS] parse board for {uid}.");
 
-  ws_out
-    .send(
-      Message::Binary(board)
-    ).await.unwrap();
+  ws_out.send(Message::Binary(board)).await.unwrap();
 
   println!("[WS] send board for {uid}.");
 
