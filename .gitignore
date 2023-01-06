@@ -4,3 +4,6 @@
 
 # Ignore the SQLite database file
 /data.db
+
+# Ignore the result image
+/result.png
