@@ -7,6 +7,7 @@ use axum::extract::ws::{Message, WebSocket};
 
 use crate::{AppState, channel::ChannelMsg};
 
+#[tracing::instrument(name = "write", skip_all)]
 pub async fn ws_write(
   state: Arc<AppState>,
   ws_session: Uuid,
@@ -80,5 +81,5 @@ pub async fn ws_write(
 
   futures::future::join(recv_task, send_task).await;
 
-  println!("[WT] {ws_session} closed.");
+  tracing::info!("Closed.");
 }

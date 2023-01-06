@@ -7,6 +7,8 @@ use uuid::Uuid;
 use futures::{StreamExt, SinkExt};
 use axum::{extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}}, response::Response};
 
+use tracing::Instrument;
+
 use yur_paintboard::{pixel::hex_to_bin, consts::{WIDTH, HEIGHT}};
 use crate::{AppState, channel::ChannelMsg};
 use self::{read::ws_read, write::ws_write};
@@ -18,6 +20,7 @@ pub async fn ws(
   ws.on_upgrade(|socket| handle_ws(state, socket))
 }
 
+#[tracing::instrument(name = "ws", skip_all, fields(uid))]
 async fn handle_ws(
   state: Arc<AppState>,
   socket: WebSocket,
@@ -55,13 +58,16 @@ async fn handle_ws(
     }
   }
 
+  tracing::Span::current()
+    .record("uid", uid);
+
   let res = ws_out.send(Message::Binary(vec![0xfc])).await; // auth success
 
   if res.is_err() {
     return;
   }
 
-  println!("[WS] {uid} authenticated.");
+  tracing::info!("Authenticated.");
 
   // TODO: only parse board when needed
   // TODO: maybe more elegant way to do this
@@ -80,11 +86,11 @@ async fn handle_ws(
   let mut board = zstd::encode_all(board.as_slice(), 0).unwrap();
   board.insert(0, 0xfb);
 
-  println!("[WS] parse board for {uid}.");
+  tracing::info!("Parse board.");
 
   ws_out.send(Message::Binary(board)).await.unwrap();
 
-  println!("[WS] send board for {uid}.");
+  tracing::info!("Send board.");
 
   let ws_session = Uuid::new_v4();
 
@@ -109,8 +115,10 @@ async fn handle_ws(
 
     state.sender.send(ChannelMsg::Close(ws_session)).unwrap();
 
-    println!("[RD] {ws_session} closed.");
+    tracing::info!("Closed.");
   };
+
+  let read_task = read_task.instrument(tracing::info_span!("read"));
 
   let write_task = ws_write(state.clone(), ws_session, ws_out);
 

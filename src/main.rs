@@ -22,6 +22,11 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
+  tracing_subscriber::fmt()
+    .with_max_level(tracing::Level::INFO)
+    .with_target(false)
+    .init();
+
   let db = Database::connect("sqlite:./data.db?mode=rwc").await
     .expect("Error opening database!");
 
@@ -64,7 +69,7 @@ async fn main() {
   let save_board_task = save_board(shared_state.clone(), old_board);
   let save_actions_task = save_actions(shared_state);
 
-  println!("[MN] Listening on 127.0.0.1:2895...");
+  tracing::info!("Listening on 127.0.0.1:2895...");
 
   let (res, _, _) =
     futures::future::join3(

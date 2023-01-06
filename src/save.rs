@@ -5,6 +5,7 @@ use sea_orm::{ActiveValue, EntityTrait, sea_query::OnConflict};
 use yur_paintboard::entities::{prelude::*, board, paint};
 use crate::AppState;
 
+#[tracing::instrument(skip_all)]
 pub async fn save_board(
   state: Arc<AppState>,
   mut old_board: HashMap<(u16, u16), board::Model>,
@@ -14,7 +15,7 @@ pub async fn save_board(
     // 5 minutes
     tokio::time::sleep(std::time::Duration::from_secs(300)).await;
 
-    println!("[BD] Start saving board...");
+    tracing::info!("Start saving board...");
 
     let mut tasks = vec![];
 
@@ -35,7 +36,7 @@ pub async fn save_board(
       }
     }
 
-    println!("[BD] Diff board size: {}", tasks.len());
+    tracing::info!(len = tasks.len(), "Diff board");
 
     // TODO(config)
     let tasks = tasks.chunks(600) // pack 600 pixels per task
@@ -56,14 +57,15 @@ pub async fn save_board(
         .exec(&state.db).await;
 
       if res.is_err() {
-        eprintln!("[BD] Save board failed!");
+        tracing::error!("Save board failed!");
       }
     }
 
-    println!("[BD] Save board success!");
+    tracing::info!("Save board success!");
   }
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn save_actions(
   state: Arc<AppState>,
 ) {
@@ -72,7 +74,7 @@ pub async fn save_actions(
     // 8 minutes
     tokio::time::sleep(std::time::Duration::from_secs(480)).await;
 
-    println!("[AT] Start saving actions...");
+    tracing::info!("Start saving actions...");
 
     let actions = {
       let mut actions = state.actions
@@ -85,7 +87,7 @@ pub async fn save_actions(
       res
     };
 
-    println!("[AT] Actions num: {}", actions.len());
+    tracing::info!(len = actions.len(), "Count actions");
 
     // TODO(config)
     let tasks = actions.chunks(600) // pack 600 actions per task
@@ -97,11 +99,11 @@ pub async fn save_actions(
         .exec(&state.db).await;
 
       if res.is_err() {
-        eprintln!("[AT] Save actions failed!");
+        tracing::error!("Save actions failed!");
       }
     }
 
 
-    println!("[AT] Save actions success!");
+    tracing::info!("Save actions success!");
   }
 }
