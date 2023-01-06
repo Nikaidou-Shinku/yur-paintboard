@@ -4,4 +4,5 @@ pub mod prelude;
 
 pub mod auth;
 pub mod board;
+pub mod paint;
 pub mod session;

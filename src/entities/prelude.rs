@@ -2,4 +2,5 @@
 
 pub use super::auth::Entity as Auth;
 pub use super::board::Entity as Board;
+pub use super::paint::Entity as Paint;
 pub use super::session::Entity as Session;
