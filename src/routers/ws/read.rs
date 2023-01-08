@@ -19,13 +19,8 @@ pub async fn ws_read(
   msg: Message,
 ) -> Option<i32> {
   let msg = msg.into_data();
-  let msg = msg.split_first();
 
-  if msg.is_none() {
-    return None;
-  }
-
-  let (opt, data) = msg.unwrap();
+  let (opt, data) = msg.split_first()?;
 
   match opt {
     0xff => { // Auth
@@ -75,10 +70,7 @@ async fn handle_auth(
 
   let session = session.unwrap();
 
-  match session {
-    None => None,
-    Some(session) => Some(session.uid),
-  }
+  session.map(|session| session.uid)
 }
 
 async fn handle_paint(

@@ -7,14 +7,14 @@ pub struct Pixel {
   pub color: (u8, u8, u8),
 }
 
-impl Into<Bytes> for &Pixel {
-  fn into(self) -> Bytes {
+impl From<&Pixel> for Bytes {
+  fn from(pixel: &Pixel) -> Self {
     let mut res = BytesMut::with_capacity(7);
 
-    res.put_u16_le(self.x);
-    res.put_u16_le(self.y);
+    res.put_u16_le(pixel.x);
+    res.put_u16_le(pixel.y);
 
-    let c = self.color;
+    let c = pixel.color;
     res.put_slice(&[c.0, c.1, c.2]);
 
     res.freeze()
