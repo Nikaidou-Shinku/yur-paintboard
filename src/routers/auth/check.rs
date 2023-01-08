@@ -18,6 +18,7 @@ struct LuoguResp<T> {
   currentData: T,
 }
 
+#[tracing::instrument(name = "check", skip_all)]
 pub async fn check_user(
   uid: i32,
   token: Uuid,
@@ -29,6 +30,7 @@ pub async fn check_user(
     .send().await;
 
   if resp.is_err() {
+    tracing::error!("Error accessing Luogu!");
     return false;
   }
 
@@ -36,6 +38,7 @@ pub async fn check_user(
     .bytes().await;
 
   if resp.is_err() {
+    tracing::error!("Error parsing Luogu response to bytes!");
     return false;
   }
 
@@ -43,6 +46,7 @@ pub async fn check_user(
   let res = serde_json::from_slice(&resp);
 
   if res.is_err() {
+    tracing::error!("Error parsing Luogu response to JSON!");
     return false;
   }
 
@@ -50,6 +54,7 @@ pub async fn check_user(
   let intro = res.currentData.user.introduction;
 
   if intro.is_none() {
+    tracing::error!("User has no introduction!");
     return false;
   }
 

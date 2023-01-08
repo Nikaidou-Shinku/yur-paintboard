@@ -20,10 +20,13 @@ pub struct AuthResp {
   token: Uuid,
 }
 
+#[tracing::instrument(name = "auth", skip_all, fields(uid = payload.uid))]
 pub async fn auth(
   State(state): State<Arc<AppState>>,
   Json(payload): Json<AuthPayload>,
 ) -> (StatusCode, Json<ErrOr<AuthResp>>) {
+  tracing::info!("Generating new auth session and token...");
+
   let session = Uuid::new_v4();
   let token = Uuid::new_v4();
 
@@ -42,11 +45,13 @@ pub async fn auth(
     .exec(&state.db).await;
 
   if res.is_err() {
+    tracing::error!("Error accessing database!");
     (
       StatusCode::INTERNAL_SERVER_ERROR,
       Json(ErrOr::Err("Error accessing database!".into())),
     )
   } else {
+    tracing::info!("New auth session and token generated!");
     (
       StatusCode::OK,
       Json(ErrOr::Ok(AuthResp { session, token }.into())),
