@@ -111,7 +111,7 @@ fn get_board(
     for y in 0..HEIGHT {
       let pixel = state.board
         .get(&(x, y)).unwrap()
-        .lock().unwrap();
+        .lock();
       board.extend_from_slice(&hex_to_bin(&pixel.color));
     }
   }
