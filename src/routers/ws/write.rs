@@ -107,7 +107,7 @@ pub async fn ws_write(
 fn get_board(
   state: Arc<AppState>,
 ) -> Vec<u8> {
-  let max_len = (WIDTH * HEIGHT * 3).into();
+  let max_len = WIDTH as usize * HEIGHT as usize * 3;
   let mut board = BytesMut::with_capacity(max_len);
 
   for x in 0..WIDTH {

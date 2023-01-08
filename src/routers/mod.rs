@@ -1,7 +1,7 @@
-mod auth;
+mod http;
 mod ws;
 
-pub use auth::{auth, verify};
+pub use http::{auth, verify};
 pub use ws::ws;
 
 use serde::Serialize;
