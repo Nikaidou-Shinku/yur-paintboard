@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use bytes::{BytesMut, BufMut, Buf, Bytes};
 use uuid::Uuid;
 use futures::{stream::SplitSink, SinkExt};
 use tokio::sync::Mutex;
 use axum::extract::ws::{Message, WebSocket};
 
-use yur_paintboard::{consts::{WIDTH, HEIGHT}, pixel::hex_to_bin};
+use yur_paintboard::{consts::{WIDTH, HEIGHT}, pixel::hex_to_bytes};
 use crate::{AppState, channel::ChannelMsg};
 
 #[tracing::instrument(name = "write", skip_all)]
@@ -72,15 +73,16 @@ pub async fn ws_write(
         let mut ws_paints = ws_paints.lock().await;
 
         if ws_paints.len() > 0 {
-          let mut msg = vec![0xfa];
+          let mut msg = BytesMut::with_capacity(ws_paints.len() * 7 + 1);
+
+          msg.put_u8(0xfa);
 
           for pixel in ws_paints.iter() {
-            let pixel: [u8; 7] = pixel.into();
-            msg.extend_from_slice(&pixel);
+            msg.put::<Bytes>(pixel.into());
           }
 
           let res = ws_out.lock().await
-            .send(Message::Binary(msg)).await;
+            .send(Message::Binary(msg.into())).await;
 
           if res.is_err() {
             *ws_over.lock().await = true;
@@ -105,20 +107,22 @@ pub async fn ws_write(
 fn get_board(
   state: Arc<AppState>,
 ) -> Vec<u8> {
-  let mut board = vec![];
+  let max_len = (WIDTH * HEIGHT * 3).into();
+  let mut board = BytesMut::with_capacity(max_len);
 
   for x in 0..WIDTH {
     for y in 0..HEIGHT {
       let pixel = state.board
         .get(&(x, y)).unwrap()
         .lock();
-      board.extend_from_slice(&hex_to_bin(&pixel.color));
+      board.put(hex_to_bytes(&pixel.color));
     }
   }
 
   // TODO(config): compress level
-  let mut board = zstd::encode_all(board.as_slice(), 0).unwrap();
-  board.insert(0, 0xfb);
+  let raw_board = zstd::encode_all(board.reader(), 0).unwrap();
+  let mut board = vec![0xfb];
+  board.extend_from_slice(&raw_board);
 
   board
 }
