@@ -21,7 +21,7 @@ pub async fn save_board(
 
     for pixel in &state.board {
       let old_pixel = old_board.get(pixel.0).unwrap();
-      let now_pixel = pixel.1.lock().unwrap();
+      let now_pixel = pixel.1.lock();
 
       if old_pixel.time != now_pixel.time { // is it accurate enough?
         tasks.push(board::ActiveModel {
@@ -77,8 +77,7 @@ pub async fn save_actions(
     tracing::info!("Start saving actions...");
 
     let actions = {
-      let mut actions = state.actions
-        .lock().unwrap();
+      let mut actions = state.actions.lock();
 
       let res = actions.clone();
 

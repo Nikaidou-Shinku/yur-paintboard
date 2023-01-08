@@ -2,8 +2,9 @@ mod save;
 mod channel;
 mod routers;
 
-use std::{sync::{Arc, Mutex}, collections::HashMap};
+use std::{sync::Arc, collections::HashMap};
 
+use parking_lot::Mutex;
 use chrono::{DateTime, Local};
 use tokio::sync::broadcast::{self, Sender};
 use sea_orm::{Database, DatabaseConnection, EntityTrait};
@@ -25,7 +26,7 @@ pub struct AppState {
 #[tokio::main]
 async fn main() {
   let target_layer = filter::Targets::new()
-    .with_target("sqlx", tracing::Level::WARN)
+    .with_target("sqlx", tracing::Level::ERROR)
     .with_target("yur_paintboard", tracing::Level::INFO);
 
   let fmt_layer = tracing_subscriber::fmt::layer()

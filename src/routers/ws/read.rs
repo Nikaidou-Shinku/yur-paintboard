@@ -107,7 +107,7 @@ async fn handle_paint(
   let now = Local::now();
 
   { // check interval
-    let mut user_paint = state.user_paint.lock().unwrap();
+    let mut user_paint = state.user_paint.lock();
 
     if let Some(last_paint) = user_paint.get(&uid) {
       // TODO(config)
@@ -132,7 +132,7 @@ async fn handle_paint(
   let same = { // same color
     let mut pixel = state.board
       .get(&(x, y)).unwrap()
-      .lock().unwrap();
+      .lock();
 
     let same = pixel.color == new_pixel.color;
 
@@ -150,9 +150,7 @@ async fn handle_paint(
     ..Default::default()
   };
 
-  state.actions
-    .lock().unwrap()
-    .push(new_action);
+  state.actions.lock().push(new_action);
 
   if !same {
     state.sender
