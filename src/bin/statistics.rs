@@ -19,6 +19,7 @@ async fn board(db: &DatabaseConnection) {
   };
 
   let mut board_info = HashMap::new();
+  let mut pixel_num = 0;
 
   for pixel in board {
     let uid = pixel.uid;
@@ -35,14 +36,16 @@ async fn board(db: &DatabaseConnection) {
       .entry(uid)
       .and_modify(|num| *num += 1)
       .or_insert(1);
+
+    pixel_num += 1;
   }
 
   let mut board_info: Vec<_> = board_info.iter().collect();
   board_info.sort_by(|a, b| b.1.cmp(a.1));
 
-  println!("The earliest pixel:\n{earliest_paint:?}");
+  println!("The earliest pixel:\n{earliest_paint:?}\n");
 
-  println!("Ranking ({} users):", board_info.len());
+  println!("Ranking ({} users, {pixel_num} pixels):", board_info.len());
   for item in board_info {
     println!("UID: {:6}, Number of pixels: {:6}", item.0, item.1);
   }
@@ -69,7 +72,7 @@ async fn actions(db: &DatabaseConnection) {
     .all(db).await
     .expect("Error fetching paint!");
 
-  println!("Actions: {}", actions.len());
+  println!("Actions: {}\n", actions.len());
 }
 
 #[tokio::main]
