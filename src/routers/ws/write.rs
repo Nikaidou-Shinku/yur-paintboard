@@ -120,7 +120,7 @@ fn get_board(
   }
 
   // TODO(config): compress level
-  let raw_board = zstd::encode_all(board.reader(), 0).unwrap();
+  let raw_board = zstd::encode_all(board.reader(), 19).unwrap();
   let mut board = vec![0xfb];
   board.extend_from_slice(&raw_board);
 
