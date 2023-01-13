@@ -8,7 +8,7 @@ use yur_paintboard::{
 };
 
 #[derive(Parser)]
-#[command(name = "save_img")]
+#[command(name = "save_image")]
 #[command(author = "yurzhang")]
 #[command(about = "Save the paintboard to an image file.")]
 #[command(version, long_about = None)]
