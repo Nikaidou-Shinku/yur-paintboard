@@ -94,7 +94,7 @@ pub async fn ws_write(
       }
 
       // TODO(config)
-      tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+      tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
   };
 
