@@ -91,7 +91,7 @@ async fn handle_ws(
 
     state.sender.send(ChannelMsg::Close(ws_session)).unwrap();
 
-    tracing::info!("Closed.");
+    tracing::trace!("Closed.");
   };
 
   let read_task = read_task.instrument(tracing::info_span!("read"));
@@ -99,4 +99,6 @@ async fn handle_ws(
   let write_task = ws_write(state.clone(), ws_session, ws_out);
 
   futures::future::join(read_task, write_task).await;
+
+  tracing::info!("Closed.");
 }
