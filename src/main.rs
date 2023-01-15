@@ -1,5 +1,4 @@
 mod save;
-mod channel;
 mod routers;
 
 use std::{sync::Arc, collections::HashMap};
@@ -12,12 +11,12 @@ use axum::{Router, routing::{get, post}};
 
 use tracing_subscriber::{prelude::*, filter};
 
-use yur_paintboard::entities::{prelude::*, board, paint};
-use crate::{save::{save_board, save_actions}, channel::ChannelMsg};
+use yur_paintboard::{entities::{prelude::*, board, paint}, pixel::Pixel};
+use crate::save::{save_board, save_actions};
 
 pub struct AppState {
   db: DatabaseConnection,
-  sender: Sender<ChannelMsg>,
+  sender: Sender<Pixel>,
   board: HashMap<(u16, u16), Mutex<board::Model>>,
   user_paint: Mutex<HashMap<i32, DateTime<Local>>>,
   actions: Mutex<Vec<paint::ActiveModel>>,
@@ -46,7 +45,7 @@ async fn main() {
     .expect("Error fetching board!");
 
   // TODO(config)
-  let (sender, _) = broadcast::channel::<ChannelMsg>(65536);
+  let (sender, _) = broadcast::channel::<Pixel>(65536);
 
   let mut now_board = HashMap::new();
   let mut old_board = HashMap::new();

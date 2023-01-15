@@ -3,52 +3,107 @@ use std::sync::Arc;
 use uuid::Uuid;
 use chrono::Local;
 use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, ActiveValue};
-use axum::extract::ws::Message;
+use axum::extract::ws::{Message, WebSocket};
 
 use yur_paintboard::{
   consts::{WIDTH, HEIGHT},
   entities::{prelude::*, session, board, paint},
-  pixel::{color_to_hex, Pixel},
+  pixel::{color_to_hex, Pixel, hex_to_bin},
 };
-use crate::{AppState, channel::ChannelMsg};
+use crate::AppState;
+use super::WsState;
 
 pub async fn ws_read(
   state: Arc<AppState>,
-  uid: Option<i32>,
-  ws_session: Option<Uuid>,
-  msg: Message,
-) -> Option<i32> {
-  let msg = msg.into_data();
+  socket: &mut WebSocket,
+  ws_state: &mut WsState,
+  msg: Option<Result<Message, axum::Error>>,
+) -> bool {
+  if msg.is_none() {
+    return true;
+  }
+  let msg = msg.unwrap();
 
-  let (opt, data) = msg.split_first()?;
+  if msg.is_err() {
+    return false;
+  }
+  let msg = msg.unwrap();
+
+  let msg = msg.into_data();
+  let msg = msg.split_first();
+
+  if msg.is_none() {
+    return false;
+  }
+  let (opt, data) = msg.unwrap();
 
   match opt {
     0xff => { // Auth
-      if uid.is_some() {
-        return uid;
-      }
+      if ws_state.uid.is_none() {
+        ws_state.uid = handle_auth(state, data).await;
 
-      handle_auth(state, data).await
+        match ws_state.uid {
+          Some(uid) => {
+            tracing::Span::current().record("uid", uid);
+
+            let res = socket.send(Message::Binary(vec![0xfc])).await; // auth success
+            if res.is_err() {
+              return true;
+            }
+
+            tracing::info!("Authenticated.");
+          },
+          None => {
+            let res = socket.send(Message::Binary(vec![0xfd])).await; // auth failed
+            if res.is_err() {
+              return true;
+            }
+          },
+        }
+      }
     },
     0xfe => { // Paint
-      if let Some(uid) = uid {
-        handle_paint(state, uid, data).await;
+      // TODO(config)
+      if ws_state.quick_paint > 3 {
+        return true;
       }
 
-      None
+      if let Some(_) = ws_state.uid {
+        handle_paint(state, ws_state, data).await;
+      }
     },
     0xf9 => { // Board
-      if let Some(ws_session) = ws_session {
-        handle_board(state, ws_session);
-      }
+      if let Some(_) = ws_state.uid {
+        let board = get_board(state);
 
-      None
+        ws_state.readonly = false;
+  
+        let res = socket.send(Message::Binary(board)).await;
+        if res.is_err() {
+          return true;
+        }
+  
+        tracing::info!("Sent board.");
+      }
     },
-    _ => { None },
+    0xf7 => { // Pong
+      ws_state.get_pong = true;
+    },
+    _ => {
+      tracing::warn!("Unknown message!");
+      ws_state.trash_pack += 1;
+
+      // TODO(config)
+      if ws_state.trash_pack > 0 {
+        return true;
+      }
+    },
   }
+
+  return false;
 }
 
-async fn handle_auth(
+pub async fn handle_auth(
   state: Arc<AppState>,
   data: &[u8],
 ) -> Option<i32> {
@@ -73,9 +128,9 @@ async fn handle_auth(
   session.map(|session| session.uid)
 }
 
-async fn handle_paint(
+pub async fn handle_paint(
   state: Arc<AppState>,
-  uid: i32,
+  ws_state: &mut WsState,
   data: &[u8],
 ) {
   if data.len() != 7 {
@@ -96,6 +151,8 @@ async fn handle_paint(
 
   let color = (data[4], data[5], data[6]);
 
+  let uid = ws_state.uid.unwrap();
+
   let now = Local::now();
 
   { // check interval
@@ -104,7 +161,10 @@ async fn handle_paint(
     if let Some(last_paint) = user_paint.get(&uid) {
       // TODO(config)
       if (now - *last_paint) < chrono::Duration::milliseconds(500) {
+        ws_state.quick_paint += 1;
         return;
+      } else {
+        ws_state.quick_paint = 0;
       }
     }
 
@@ -146,14 +206,29 @@ async fn handle_paint(
 
   if !same {
     state.sender
-      .send(ChannelMsg::Paint(Pixel { x, y, color })).unwrap();
+      .send(Pixel { x, y, color }).unwrap();
   }
 }
 
-fn handle_board(
+pub fn get_board(
   state: Arc<AppState>,
-  ws_session: Uuid,
-) {
-  state.sender
-    .send(ChannelMsg::Board(ws_session)).unwrap();
+) -> Vec<u8> {
+  let max_len = WIDTH as usize * HEIGHT as usize * 3;
+  let mut board = Vec::with_capacity(max_len);
+
+  for x in 0..WIDTH {
+    for y in 0..HEIGHT {
+      let pixel = state.board
+        .get(&(x, y)).unwrap()
+        .lock();
+      let pixel_bytes = hex_to_bin(&pixel.color);
+      board.extend_from_slice(&pixel_bytes);
+    }
+  }
+
+  // TODO(config): compress level
+  let mut board = zstd::encode_all(board.as_slice(), 19).unwrap();
+  board.insert(0, 0xfb);
+
+  board
 }
