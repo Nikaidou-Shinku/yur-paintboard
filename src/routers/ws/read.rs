@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 use chrono::Local;
+use parking_lot::Mutex;
 use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, ActiveValue};
 use axum::extract::ws::{Message, WebSocket};
 
@@ -13,10 +14,10 @@ use yur_paintboard::{
 use crate::AppState;
 use super::WsState;
 
-pub async fn ws_read(
+pub async fn handle_read(
   state: Arc<AppState>,
-  socket: &mut WebSocket,
-  ws_state: &mut WsState,
+  socket: &tokio::sync::Mutex<WebSocket>,
+  ws_state: &Mutex<WsState>,
   msg: Option<Result<Message, axum::Error>>,
 ) -> bool {
   if msg.is_none() {
@@ -39,64 +40,81 @@ pub async fn ws_read(
 
   match opt {
     0xff => { // Auth
-      if ws_state.uid.is_none() {
-        ws_state.uid = handle_auth(state, data).await;
+      let mut uid = ws_state.lock().uid;
 
-        match ws_state.uid {
-          Some(uid) => {
-            tracing::Span::current().record("uid", uid);
+      if uid.is_some() {
+        tracing::warn!("Duplicated auth!");
+        ws_state.lock().trash_pack += 1;
+        return false;
+      }
 
-            let res = socket.send(Message::Binary(vec![0xfc])).await; // auth success
-            if res.is_err() {
-              return true;
-            }
+      uid = handle_auth(state, data).await;
 
-            tracing::info!("Authenticated.");
-          },
-          None => {
-            let res = socket.send(Message::Binary(vec![0xfd])).await; // auth failed
-            if res.is_err() {
-              return true;
-            }
-          },
-        }
+      match uid {
+        Some(uid) => {
+          ws_state.lock().uid = Some(uid);
+          tracing::Span::current().record("uid", uid);
+
+          let res = socket.lock().await
+            .send(Message::Binary(vec![0xfc])).await; // auth success
+          if res.is_err() {
+            return true;
+          }
+
+          tracing::info!("Authenticated.");
+        },
+        None => {
+          tracing::warn!("Auth failed!");
+
+          let res = socket.lock().await
+            .send(Message::Binary(vec![0xfd])).await; // auth failed
+          if res.is_err() {
+            return true;
+          }
+
+          ws_state.lock().trash_pack += 1;
+        },
       }
     },
     0xfe => { // Paint
-      // TODO(config)
-      if ws_state.quick_paint > 3 {
+      if ws_state.lock().uid.is_none() {
+        tracing::warn!("Paint without auth!");
+        ws_state.lock().trash_pack += 1;
+        return false;
+      }
+
+      handle_paint(state, ws_state, data).await;
+    },
+    0xf9 => { // Board
+      if ws_state.lock().uid.is_none() {
+        tracing::warn!("Get board without auth!");
+        ws_state.lock().trash_pack += 1;
+        return false;
+      }
+
+      if !ws_state.lock().readonly { // refuse to send board twice
+        tracing::warn!("Duplicate board request!");
         return true;
       }
 
-      if let Some(_) = ws_state.uid {
-        handle_paint(state, ws_state, data).await;
-      }
-    },
-    0xf9 => { // Board
-      if let Some(_) = ws_state.uid {
-        let board = get_board(state);
+      let board = get_board(state);
 
-        ws_state.readonly = false;
-  
-        let res = socket.send(Message::Binary(board)).await;
-        if res.is_err() {
-          return true;
-        }
-  
-        tracing::info!("Sent board.");
+      ws_state.lock().readonly = false;
+
+      let res = socket.lock().await
+        .send(Message::Binary(board)).await;
+      if res.is_err() {
+        return true;
       }
+
+      tracing::info!("Sent board.");
     },
     0xf7 => { // Pong
-      ws_state.get_pong = true;
+      ws_state.lock().get_pong = true;
     },
     _ => {
       tracing::warn!("Unknown message!");
-      ws_state.trash_pack += 1;
-
-      // TODO(config)
-      if ws_state.trash_pack > 0 {
-        return true;
-      }
+      ws_state.lock().trash_pack += 1;
     },
   }
 
@@ -130,46 +148,55 @@ pub async fn handle_auth(
 
 pub async fn handle_paint(
   state: Arc<AppState>,
-  ws_state: &mut WsState,
+  ws_state: &Mutex<WsState>,
   data: &[u8],
 ) {
   if data.len() != 7 {
+    tracing::warn!(len = data.len(), "Invalid paint data!");
+    ws_state.lock().trash_pack += 1;
     return;
   }
 
   let x = u16::from_le_bytes([data[0], data[1]]);
 
   if x >= WIDTH {
+    tracing::warn!(x, "Invalid paint data!");
+    ws_state.lock().trash_pack += 1;
     return;
   }
 
   let y = u16::from_le_bytes([data[2], data[3]]);
 
   if y >= HEIGHT {
+    tracing::warn!(y, "Invalid paint data!");
+    ws_state.lock().trash_pack += 1;
     return;
   }
 
   let color = (data[4], data[5], data[6]);
 
-  let uid = ws_state.uid.unwrap();
+  let uid = ws_state.lock().uid.unwrap();
 
   let now = Local::now();
 
-  { // check interval
-    let mut user_paint = state.user_paint.lock();
+  // check interval
+  let last_paint = {
+    let user_paint = state.user_paint.lock();
+    user_paint.get(&uid).map(|item| item.to_owned())
+  };
 
-    if let Some(last_paint) = user_paint.get(&uid) {
-      // TODO(config)
-      if (now - *last_paint) < chrono::Duration::milliseconds(500) {
-        ws_state.quick_paint += 1;
-        return;
-      } else {
-        ws_state.quick_paint = 0;
-      }
+  if let Some(last_paint) = last_paint {
+    let mut ws_state = ws_state.lock();
+    // TODO(config)
+    if (now - last_paint) < chrono::Duration::milliseconds(500) {
+      ws_state.quick_paint += 1;
+      return;
+    } else {
+      ws_state.quick_paint = 0;
     }
-
-    user_paint.insert(uid, now);
   }
+
+  state.user_paint.lock().insert(uid, now);
 
   let hex_color = color_to_hex(color);
 
