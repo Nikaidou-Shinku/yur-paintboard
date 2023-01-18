@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 use chrono::Local;
+use futures::{stream::SplitSink, SinkExt};
 use parking_lot::Mutex;
 use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, ActiveValue};
 use axum::extract::ws::{Message, WebSocket};
@@ -16,7 +17,7 @@ use super::WsState;
 
 pub async fn handle_read(
   state: Arc<AppState>,
-  socket: &tokio::sync::Mutex<WebSocket>,
+  ws_out: &tokio::sync::Mutex<SplitSink<WebSocket, Message>>,
   ws_state: &Mutex<WsState>,
   msg: Option<Result<Message, axum::Error>>,
 ) -> bool {
@@ -55,7 +56,7 @@ pub async fn handle_read(
           ws_state.lock().uid = Some(uid);
           tracing::Span::current().record("uid", uid);
 
-          let res = socket.lock().await
+          let res = ws_out.lock().await
             .send(Message::Binary(vec![0xfc])).await; // auth success
           if res.is_err() {
             return true;
@@ -66,7 +67,7 @@ pub async fn handle_read(
         None => {
           tracing::warn!("Auth failed!");
 
-          let res = socket.lock().await
+          let res = ws_out.lock().await
             .send(Message::Binary(vec![0xfd])).await; // auth failed
           if res.is_err() {
             return true;
@@ -86,6 +87,8 @@ pub async fn handle_read(
       handle_paint(state, ws_state, data).await;
     },
     0xf9 => { // Board
+      tracing::info!("Request for board.");
+
       if ws_state.lock().uid.is_none() {
         tracing::warn!("Get board without auth!");
         ws_state.lock().trash_pack += 1;
@@ -101,7 +104,7 @@ pub async fn handle_read(
 
       ws_state.lock().readonly = false;
 
-      let res = socket.lock().await
+      let res = ws_out.lock().await
         .send(Message::Binary(board)).await;
       if res.is_err() {
         return true;
@@ -110,6 +113,7 @@ pub async fn handle_read(
       tracing::info!("Sent board.");
     },
     0xf7 => { // Pong
+      tracing::info!("Pong!");
       ws_state.lock().get_pong = true;
     },
     _ => {

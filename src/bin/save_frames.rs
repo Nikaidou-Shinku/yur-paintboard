@@ -26,8 +26,8 @@ async fn main() {
     }
   }
 
-  let mut begin_time = Local.with_ymd_and_hms(2023, 1, 7, 14, 0, 0).unwrap();
-  let end_time = Local.with_ymd_and_hms(2023, 1, 9, 14, 0, 0).unwrap();
+  let mut begin_time = Local.with_ymd_and_hms(2023, 1, 14, 14, 0, 0).unwrap();
+  let end_time = Local.with_ymd_and_hms(2023, 1, 16, 14, 0, 0).unwrap();
 
   let mut action_idx = 0;
   let mut pic_idx = 1;
@@ -35,7 +35,7 @@ async fn main() {
   std::fs::create_dir_all("./frames").unwrap();
 
   while begin_time <= end_time {
-    while actions[action_idx].time < begin_time && action_idx < actions.len() {
+    while action_idx < actions.len() && actions[action_idx].time < begin_time {
       let action = &actions[action_idx];
       let pos = (action.x as u16, action.y as u16);
       board.insert(pos, hex_to_bin(&action.color));
@@ -52,7 +52,7 @@ async fn main() {
 
     imgbuf.save(format!("./frames/{pic_idx}.png")).unwrap();
 
-    begin_time += chrono::Duration::seconds(10);
+    begin_time += chrono::Duration::seconds(20);
     pic_idx += 1;
   }
 }

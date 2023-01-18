@@ -8,6 +8,7 @@ default-run = "yur-paintboard"
 [profile.release]
 strip = true
 lto = true
+codegen-units = 1
 
 [dependencies]
 uuid = "1.2.2"
@@ -20,12 +21,15 @@ clap = { version = "4.0.32", features = ["derive"] }
 parking_lot = "0.12.1"
 futures = "0.3.25"
 tokio = { version = "1.23.0", features = ["macros", "sync", "parking_lot"] }
-reqwest = { version = "0.11.13", features = ["rustls-tls-webpki-roots"] }
-axum = { version = "0.6.1", features = ["http2", "ws"] }
 
 # logging
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["parking_lot"] }
+
+[dependencies.reqwest]
+version = "0.11.13"
+default-features = false
+features = ["rustls-tls-webpki-roots"]
 
 [dependencies.sea-orm]
 version = "0.10.6"
@@ -33,4 +37,13 @@ features = [
   "sqlx-sqlite",
   "runtime-tokio-rustls",
   "macros",
+]
+
+[dependencies.axum]
+version = "0.6.1"
+default-features = false
+features = [
+  "http2",
+  "json",
+  "ws",
 ]

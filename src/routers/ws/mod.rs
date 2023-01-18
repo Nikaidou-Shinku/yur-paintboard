@@ -2,6 +2,7 @@ mod read;
 
 use std::{sync::Arc, time::Duration};
 
+use futures::{StreamExt, stream::{SplitSink, SplitStream}, SinkExt};
 use parking_lot::Mutex;
 use axum::{
   extract::{
@@ -36,7 +37,8 @@ async fn handle_ws(
   state: Arc<AppState>,
   socket: WebSocket,
 ) {
-  let socket = tokio::sync::Mutex::new(socket);
+  let (ws_out, ws_in) = socket.split();
+  let ws_out = tokio::sync::Mutex::new(ws_out);
   let ws_state = WsState {
     uid: None,
     readonly: true,
@@ -48,25 +50,25 @@ async fn handle_ws(
   let ws_paints = Mutex::new(vec![]);
 
   tokio::select! {
-    _ = ws_read(&socket, state.clone(), &ws_state) => { },
+    _ = ws_read(ws_in, &ws_out, state.clone(), &ws_state) => { },
     _ = recv_paint(state, &ws_state, &ws_paints) => { },
-    _ = ws_write(&socket, &ws_paints) => { },
-    _ = heartbeat(&socket, &ws_state) => { },
+    _ = ws_write(&ws_out, &ws_paints) => { },
+    _ = heartbeat(&ws_out, &ws_state) => { },
   }
 
   tracing::info!("Closed.");
 }
 
 async fn ws_read(
-  socket: &tokio::sync::Mutex<WebSocket>,
+  mut ws_in: SplitStream<WebSocket>,
+  ws_out: &tokio::sync::Mutex<SplitSink<WebSocket, Message>>,
   state: Arc<AppState>,
   ws_state: &Mutex<WsState>,
 ) {
   loop {
-    let msg = socket.lock().await
-      .recv().await;
+    let msg = ws_in.next().await;
 
-    let exit = handle_read(state.clone(), socket, ws_state, msg).await;
+    let exit = handle_read(state.clone(), ws_out, ws_state, msg).await;
 
     if exit {
       break;
@@ -110,7 +112,7 @@ async fn recv_paint(
 }
 
 async fn ws_write(
-  socket: &tokio::sync::Mutex<WebSocket>,
+  ws_out: &tokio::sync::Mutex<SplitSink<WebSocket, Message>>,
   ws_paints: &Mutex<Vec<Pixel>>,
 ) {
   // TODO(config)
@@ -136,7 +138,7 @@ async fn ws_write(
 
     ws_paints.lock().clear();
 
-    let res = socket.lock().await
+    let res = ws_out.lock().await
       .send(Message::Binary(msg)).await;
 
     if res.is_err() {
@@ -146,7 +148,7 @@ async fn ws_write(
 }
 
 async fn heartbeat(
-  socket: &tokio::sync::Mutex<WebSocket>,
+  ws_out: &tokio::sync::Mutex<SplitSink<WebSocket, Message>>,
   ws_state: &Mutex<WsState>,
 ) {
   // TODO(config)
@@ -155,11 +157,13 @@ async fn heartbeat(
   loop {
     heartbeat.tick().await;
 
-    let res = socket.lock().await
+    let res = ws_out.lock().await
       .send(Message::Binary(vec![0xf8])).await;
     if res.is_err() {
       break;
     }
+
+    tracing::info!("Ping!");
 
     // TODO(config)
     tokio::time::sleep(Duration::from_secs(10)).await;
