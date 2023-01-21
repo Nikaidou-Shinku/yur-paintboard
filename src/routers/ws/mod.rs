@@ -76,10 +76,12 @@ async fn ws_read(
 
     // TODO(config)
     if ws_state.lock().quick_paint > 3 {
+      tracing::warn!("Closed due to quick paint");
       break;
     }
 
     if ws_state.lock().trash_pack > 0 {
+      tracing::warn!("Closed due to trash pack");
       break;
     }
   }
@@ -142,6 +144,7 @@ async fn ws_write(
       .send(Message::Binary(msg)).await;
 
     if res.is_err() {
+      tracing::warn!("Closed due to failed to send pixels");
       break;
     }
   }
@@ -160,6 +163,7 @@ async fn heartbeat(
     let res = ws_out.lock().await
       .send(Message::Binary(vec![0xf8])).await;
     if res.is_err() {
+      tracing::warn!("Closed due to failed to send `ping`");
       break;
     }
 

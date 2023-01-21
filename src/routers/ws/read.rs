@@ -22,19 +22,27 @@ pub async fn handle_read(
   msg: Option<Result<Message, axum::Error>>,
 ) -> bool {
   if msg.is_none() {
+    tracing::info!("Received empty message, closing...");
     return true;
   }
   let msg = msg.unwrap();
 
   if msg.is_err() {
+    tracing::warn!("Error receiving message");
     return false;
   }
   let msg = msg.unwrap();
+
+  if let Message::Close(_) = msg {
+    tracing::info!("Client closed connection, closing...");
+    return true;
+  }
 
   let msg = msg.into_data();
   let msg = msg.split_first();
 
   if msg.is_none() {
+    tracing::warn!("Received empty data");
     return false;
   }
   let (opt, data) = msg.unwrap();
@@ -59,6 +67,7 @@ pub async fn handle_read(
           let res = ws_out.lock().await
             .send(Message::Binary(vec![0xfc])).await; // auth success
           if res.is_err() {
+            tracing::warn!("Error sending auth result, closing...");
             return true;
           }
 
@@ -70,6 +79,7 @@ pub async fn handle_read(
           let res = ws_out.lock().await
             .send(Message::Binary(vec![0xfd])).await; // auth failed
           if res.is_err() {
+            tracing::warn!("Error sending auth result, closing...");
             return true;
           }
 
@@ -96,7 +106,7 @@ pub async fn handle_read(
       }
 
       if !ws_state.lock().readonly { // refuse to send board twice
-        tracing::warn!("Duplicate board request!");
+        tracing::warn!("Duplicate board request, closing...");
         return true;
       }
 
@@ -107,6 +117,7 @@ pub async fn handle_read(
       let res = ws_out.lock().await
         .send(Message::Binary(board)).await;
       if res.is_err() {
+        tracing::warn!("Error sending board, closing...");
         return true;
       }
 
@@ -193,6 +204,7 @@ pub async fn handle_paint(
     let mut ws_state = ws_state.lock();
     // TODO(config)
     if (now - last_paint) < chrono::Duration::milliseconds(500) {
+      tracing::info!("Quick paint");
       ws_state.quick_paint += 1;
       return;
     } else {
