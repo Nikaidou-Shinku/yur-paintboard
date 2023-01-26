@@ -4,18 +4,20 @@ use chrono::{Local, TimeZone};
 use sea_orm::{Database, EntityTrait};
 
 use yur_paintboard::{
-  consts::{WIDTH, HEIGHT},
+  consts::{HEIGHT, WIDTH},
   entities::prelude::*,
   pixel::hex_to_bin,
 };
 
 #[tokio::main]
 async fn main() {
-  let db = Database::connect("sqlite:./data.db?mode=rwc").await
+  let db = Database::connect("sqlite:./data.db?mode=rwc")
+    .await
     .expect("Error opening database!");
 
   let actions = Paint::find()
-    .all(&db).await
+    .all(&db)
+    .await
     .expect("Error fetching actions!");
 
   let mut board = HashMap::new();

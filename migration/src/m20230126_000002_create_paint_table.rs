@@ -16,23 +16,22 @@ impl MigrationTrait for Migration {
               .integer()
               .not_null()
               .auto_increment()
-              .primary_key()
+              .primary_key(),
           )
           .col(ColumnDef::new(Paint::X).integer().not_null())
           .col(ColumnDef::new(Paint::Y).integer().not_null())
           .col(ColumnDef::new(Paint::Color).string_len(7).not_null())
           .col(ColumnDef::new(Paint::Uid).integer().not_null())
           .col(ColumnDef::new(Paint::Time).timestamp().not_null())
-          .to_owned()
-      ).await
+          .to_owned(),
+      )
+      .await
   }
 
   async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
     manager
-      .drop_table(
-        Table::drop()
-          .table(Paint::Table).to_owned()
-      ).await
+      .drop_table(Table::drop().table(Paint::Table).to_owned())
+      .await
   }
 }
 

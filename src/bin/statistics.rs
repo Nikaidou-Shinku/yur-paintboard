@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use chrono::Local;
-use sea_orm::{Database, EntityTrait, DatabaseConnection};
+use sea_orm::{Database, DatabaseConnection, EntityTrait};
 
-use yur_paintboard::entities::{prelude::*, board};
+use yur_paintboard::entities::{board, prelude::*};
 
 async fn board(db: &DatabaseConnection) {
-  let board = Board::find()
-    .all(db).await
-    .expect("Error fetching board!");
+  let board = Board::find().all(db).await.expect("Error fetching board!");
 
   let mut earliest_paint = board::Model {
     x: -1,
@@ -49,38 +47,38 @@ async fn board(db: &DatabaseConnection) {
   for item in board_info {
     println!("UID: {:6}, Number of pixels: {:6}", item.0, item.1);
   }
-}
-
-async fn users(db: &DatabaseConnection) {
-  let auth_users = Auth::find()
-    .all(db).await
-    .expect("Error fetching auth!");
-
-  let sessions = Session::find()
-    .all(db).await
-    .expect("Error fetching session!");
-
-  println!(
-    "Auth users: {}, Sessions: {}",
-    auth_users.len(),
-    sessions.len(),
-  );
+  println!();
 }
 
 async fn actions(db: &DatabaseConnection) {
-  let actions = Paint::find()
-    .all(db).await
-    .expect("Error fetching paint!");
+  let actions = Paint::find().all(db).await.expect("Error fetching paint!");
 
-  println!("Actions: {}\n", actions.len());
+  let mut paint_info = HashMap::new();
+  let mut pixel_num = 0;
+
+  for action in actions.iter() {
+    let uid = action.uid;
+
+    paint_info
+      .entry(uid)
+      .and_modify(|num| *num += 1)
+      .or_insert(1);
+
+    pixel_num += 1;
+  }
+
+  println!("Actions ({} users, {pixel_num} pixels):", paint_info.len());
+  for user in paint_info {
+    println!("UID: {:6}, Number of pixels: {:6}", user.0, user.1);
+  }
 }
 
 #[tokio::main]
 async fn main() {
-  let db = Database::connect("sqlite:./data.db?mode=rwc").await
+  let db = Database::connect("sqlite:./data.db?mode=rwc")
+    .await
     .expect("Error opening database!");
 
-  users(&db).await;
-  actions(&db).await;
   board(&db).await;
+  actions(&db).await;
 }
