@@ -1,10 +1,10 @@
 use chrono::Local;
-use sea_orm::{Database, ActiveValue, EntityTrait, sea_query::OnConflict};
 use clap::Parser;
+use sea_orm::{sea_query::OnConflict, ActiveValue, Database, EntityTrait};
 
 use yur_paintboard::{
-  consts::{WIDTH, HEIGHT},
-  entities::{prelude::*, board},
+  consts::{HEIGHT, WIDTH},
+  entities::{board, prelude::*},
 };
 
 #[derive(Parser)]
@@ -44,20 +44,20 @@ async fn main() {
     std::process::exit(1);
   }
 
-  let db = Database::connect("sqlite:./data.db?mode=rwc").await
+  let db = Database::connect("sqlite:./data.db?mode=rwc")
+    .await
     .expect("Error opening database!");
 
   let now = Local::now();
 
   for x in 0..WIDTH {
-    let tasks = (0..HEIGHT)
-      .map(|y| board::ActiveModel {
-        x: ActiveValue::set(x.into()),
-        y: ActiveValue::set(y.into()),
-        color: ActiveValue::set(args.color.clone()),
-        uid: ActiveValue::set(-1),
-        time: ActiveValue::set(now),
-      });
+    let tasks = (0..HEIGHT).map(|y| board::ActiveModel {
+      x: ActiveValue::set(x.into()),
+      y: ActiveValue::set(y.into()),
+      color: ActiveValue::set(args.color.clone()),
+      uid: ActiveValue::set(-1),
+      time: ActiveValue::set(now),
+    });
 
     let res = Board::insert_many(tasks)
       .on_conflict(
@@ -67,9 +67,10 @@ async fn main() {
             board::Column::Uid,
             board::Column::Time,
           ])
-          .to_owned()
+          .to_owned(),
       )
-      .exec(&db).await;
+      .exec(&db)
+      .await;
 
     if let Err(err) = res {
       eprintln!("[C{x}] Error inserting pixel: {err}");

@@ -1,15 +1,12 @@
-use std::{sync::Arc, collections::HashMap};
+use std::{collections::HashMap, sync::Arc};
 
-use sea_orm::{ActiveValue, EntityTrait, sea_query::OnConflict};
+use sea_orm::{sea_query::OnConflict, ActiveValue, EntityTrait};
 
-use yur_paintboard::entities::{prelude::*, board, paint};
 use crate::AppState;
+use yur_paintboard::entities::{board, paint, prelude::*};
 
 #[tracing::instrument(skip_all)]
-pub async fn save_board(
-  state: Arc<AppState>,
-  mut old_board: HashMap<(u16, u16), board::Model>,
-) {
+pub async fn save_board(state: Arc<AppState>, mut old_board: HashMap<(u16, u16), board::Model>) {
   loop {
     // TODO(config)
     // 5 minutes
@@ -23,7 +20,8 @@ pub async fn save_board(
       let old_pixel = old_board.get(pixel.0).unwrap();
       let now_pixel = pixel.1.lock();
 
-      if old_pixel.time != now_pixel.time { // is it accurate enough?
+      if old_pixel.time != now_pixel.time {
+        // is it accurate enough?
         tasks.push(board::ActiveModel {
           x: ActiveValue::set(now_pixel.x),
           y: ActiveValue::set(now_pixel.y),
@@ -39,7 +37,8 @@ pub async fn save_board(
     tracing::info!(len = tasks.len(), "Diff board");
 
     // TODO(config)
-    let tasks = tasks.chunks(600) // pack 600 pixels per task
+    let tasks = tasks
+      .chunks(600) // pack 600 pixels per task
       .map(|chunk| chunk.to_owned())
       .collect::<Vec<Vec<board::ActiveModel>>>();
 
@@ -52,9 +51,10 @@ pub async fn save_board(
               board::Column::Uid,
               board::Column::Time,
             ])
-            .to_owned()
+            .to_owned(),
         )
-        .exec(&state.db).await;
+        .exec(&state.db)
+        .await;
 
       if res.is_err() {
         tracing::error!("Save board failed!");
@@ -66,9 +66,7 @@ pub async fn save_board(
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn save_actions(
-  state: Arc<AppState>,
-) {
+pub async fn save_actions(state: Arc<AppState>) {
   loop {
     // TODO(config)
     // 8 minutes
@@ -89,19 +87,18 @@ pub async fn save_actions(
     tracing::info!(num = actions.len(), "Count actions");
 
     // TODO(config)
-    let tasks = actions.chunks(600) // pack 600 actions per task
+    let tasks = actions
+      .chunks(600) // pack 600 actions per task
       .map(|chunk| chunk.to_owned())
       .collect::<Vec<Vec<paint::ActiveModel>>>();
 
     for task in tasks {
-      let res = Paint::insert_many(task)
-        .exec(&state.db).await;
+      let res = Paint::insert_many(task).exec(&state.db).await;
 
       if res.is_err() {
         tracing::error!("Save actions failed!");
       }
     }
-
 
     tracing::info!("Save actions success!");
   }

@@ -14,7 +14,7 @@ impl From<&Pixel> for [u8; 7] {
 
     let c = pixel.color;
     res[4..7].copy_from_slice(&[c.0, c.1, c.2]);
-    
+
     res
   }
 }

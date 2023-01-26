@@ -2,25 +2,24 @@ mod read;
 
 use std::{sync::Arc, time::Duration};
 
-use futures::{StreamExt, stream::{SplitSink, SplitStream}, SinkExt};
-use parking_lot::Mutex;
 use axum::{
   extract::{
-    State,
-    WebSocketUpgrade,
-    ws::{WebSocket, Message},
+    ws::{Message, WebSocket},
+    State, WebSocketUpgrade,
   },
   response::Response,
 };
+use futures::{
+  stream::{SplitSink, SplitStream},
+  SinkExt, StreamExt,
+};
+use parking_lot::Mutex;
 
-use yur_paintboard::pixel::Pixel;
 use crate::AppState;
 use read::handle_read;
+use yur_paintboard::pixel::Pixel;
 
-pub async fn ws(
-  State(state): State<Arc<AppState>>,
-  ws: WebSocketUpgrade,
-) -> Response {
+pub async fn ws(State(state): State<Arc<AppState>>, ws: WebSocketUpgrade) -> Response {
   ws.on_upgrade(|socket| handle_ws(state, socket))
 }
 
@@ -33,10 +32,7 @@ pub struct WsState {
 }
 
 #[tracing::instrument(name = "ws", skip_all, fields(uid))]
-async fn handle_ws(
-  state: Arc<AppState>,
-  socket: WebSocket,
-) {
+async fn handle_ws(state: Arc<AppState>, socket: WebSocket) {
   let (ws_out, ws_in) = socket.split();
   let ws_out = tokio::sync::Mutex::new(ws_out);
   let ws_state = WsState {
@@ -140,8 +136,7 @@ async fn ws_write(
 
     ws_paints.lock().clear();
 
-    let res = ws_out.lock().await
-      .send(Message::Binary(msg)).await;
+    let res = ws_out.lock().await.send(Message::Binary(msg)).await;
 
     if res.is_err() {
       tracing::warn!("Closed due to failed to send pixels");
@@ -160,8 +155,7 @@ async fn heartbeat(
   loop {
     heartbeat.tick().await;
 
-    let res = ws_out.lock().await
-      .send(Message::Binary(vec![0xf8])).await;
+    let res = ws_out.lock().await.send(Message::Binary(vec![0xf8])).await;
     if res.is_err() {
       tracing::warn!("Closed due to failed to send `ping`");
       break;

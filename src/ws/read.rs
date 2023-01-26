@@ -1,19 +1,20 @@
 use std::sync::Arc;
 
-use uuid::Uuid;
+use axum::extract::ws::{Message, WebSocket};
 use chrono::Local;
 use futures::{stream::SplitSink, SinkExt};
+use jsonwebtoken::{decode, Algorithm, Validation};
 use parking_lot::Mutex;
-use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, ActiveValue};
-use axum::extract::ws::{Message, WebSocket};
+use sea_orm::ActiveValue;
+use serde::Deserialize;
 
-use yur_paintboard::{
-  consts::{WIDTH, HEIGHT},
-  entities::{prelude::*, session, board, paint},
-  pixel::{color_to_hex, Pixel, hex_to_bin},
-};
-use crate::AppState;
 use super::WsState;
+use crate::AppState;
+use yur_paintboard::{
+  consts::{HEIGHT, WIDTH},
+  entities::{board, paint},
+  pixel::{color_to_hex, hex_to_bin, Pixel},
+};
 
 pub async fn handle_read(
   state: Arc<AppState>,
@@ -48,7 +49,8 @@ pub async fn handle_read(
   let (opt, data) = msg.unwrap();
 
   match opt {
-    0xff => { // Auth
+    0xff => {
+      // Auth
       let mut uid = ws_state.lock().uid;
 
       if uid.is_some() {
@@ -64,30 +66,29 @@ pub async fn handle_read(
           ws_state.lock().uid = Some(uid);
           tracing::Span::current().record("uid", uid);
 
-          let res = ws_out.lock().await
-            .send(Message::Binary(vec![0xfc])).await; // auth success
+          let res = ws_out.lock().await.send(Message::Binary(vec![0xfc])).await; // auth success
           if res.is_err() {
             tracing::warn!("Error sending auth result, closing...");
             return true;
           }
 
           tracing::info!("Authenticated.");
-        },
+        }
         None => {
           tracing::warn!("Auth failed!");
 
-          let res = ws_out.lock().await
-            .send(Message::Binary(vec![0xfd])).await; // auth failed
+          let res = ws_out.lock().await.send(Message::Binary(vec![0xfd])).await; // auth failed
           if res.is_err() {
             tracing::warn!("Error sending auth result, closing...");
             return true;
           }
 
           ws_state.lock().trash_pack += 1;
-        },
+        }
       }
-    },
-    0xfe => { // Paint
+    }
+    0xfe => {
+      // Paint
       if ws_state.lock().uid.is_none() {
         tracing::warn!("Paint without auth!");
         ws_state.lock().trash_pack += 1;
@@ -95,8 +96,9 @@ pub async fn handle_read(
       }
 
       handle_paint(state, ws_state, data).await;
-    },
-    0xf9 => { // Board
+    }
+    0xf9 => {
+      // Board
       tracing::info!("Request for board.");
 
       if ws_state.lock().uid.is_none() {
@@ -105,7 +107,8 @@ pub async fn handle_read(
         return false;
       }
 
-      if !ws_state.lock().readonly { // refuse to send board twice
+      if !ws_state.lock().readonly {
+        // refuse to send board twice
         tracing::warn!("Duplicate board request, closing...");
         return true;
       }
@@ -114,58 +117,62 @@ pub async fn handle_read(
 
       ws_state.lock().readonly = false;
 
-      let res = ws_out.lock().await
-        .send(Message::Binary(board)).await;
+      let res = ws_out.lock().await.send(Message::Binary(board)).await;
       if res.is_err() {
         tracing::warn!("Error sending board, closing...");
         return true;
       }
 
       tracing::info!("Sent board.");
-    },
-    0xf7 => { // Pong
+    }
+    0xf7 => {
+      // Pong
       tracing::info!("Pong!");
       ws_state.lock().get_pong = true;
-    },
+    }
     _ => {
       tracing::warn!("Unknown message!");
       ws_state.lock().trash_pack += 1;
-    },
+    }
   }
 
   return false;
 }
 
-pub async fn handle_auth(
-  state: Arc<AppState>,
-  data: &[u8],
-) -> Option<i32> {
-  let token = Uuid::from_slice(data);
-
-  if token.is_err() {
-    return None;
-  }
-
-  let token = token.unwrap();
-
-  let session = Session::find()
-    .filter(session::Column::PaintToken.eq(token))
-    .one(&state.db).await;
-
-  if session.is_err() {
-    return None;
-  }
-
-  let session = session.unwrap();
-
-  session.map(|session| session.uid)
+#[derive(Deserialize)]
+struct Claims {
+  #[allow(dead_code)]
+  exp: usize,
+  uid: i32,
 }
 
-pub async fn handle_paint(
-  state: Arc<AppState>,
-  ws_state: &Mutex<WsState>,
-  data: &[u8],
-) {
+#[tracing::instrument(name = "auth", skip_all)]
+pub async fn handle_auth(state: Arc<AppState>, data: &[u8]) -> Option<i32> {
+  let raw_token = std::str::from_utf8(data);
+
+  if raw_token.is_err() {
+    tracing::warn!("Error decoding token!");
+    return None;
+  }
+  let raw_token = raw_token.unwrap();
+
+  let token = decode::<Claims>(
+    raw_token,
+    &state.pubkey,
+    &Validation::new(Algorithm::EdDSA),
+  );
+
+  if let Err(err) = token {
+    tracing::warn!(token = raw_token, "Invalid token: {err}");
+    return None;
+  }
+  let token = token.unwrap();
+
+  Some(token.claims.uid)
+}
+
+#[tracing::instrument(name = "paint", skip_all)]
+pub async fn handle_paint(state: Arc<AppState>, ws_state: &Mutex<WsState>, data: &[u8]) {
   if data.len() != 7 {
     tracing::warn!(len = data.len(), "Invalid paint data!");
     ws_state.lock().trash_pack += 1;
@@ -203,7 +210,7 @@ pub async fn handle_paint(
   if let Some(last_paint) = last_paint {
     let mut ws_state = ws_state.lock();
     // TODO(config)
-    if (now - last_paint) < chrono::Duration::milliseconds(500) {
+    if (now - last_paint) < chrono::Duration::milliseconds(100) {
       tracing::info!("Quick paint");
       ws_state.quick_paint += 1;
       return;
@@ -224,10 +231,9 @@ pub async fn handle_paint(
     time: now,
   };
 
-  let same = { // same color
-    let mut pixel = state.board
-      .get(&(x, y)).unwrap()
-      .lock();
+  let same = {
+    // same color
+    let mut pixel = state.board.get(&(x, y)).unwrap().lock();
 
     let same = pixel.color == new_pixel.color;
 
@@ -248,22 +254,17 @@ pub async fn handle_paint(
   state.actions.lock().push(new_action);
 
   if !same {
-    state.sender
-      .send(Pixel { x, y, color }).unwrap();
+    state.sender.send(Pixel { x, y, color }).unwrap();
   }
 }
 
-pub fn get_board(
-  state: Arc<AppState>,
-) -> Vec<u8> {
+pub fn get_board(state: Arc<AppState>) -> Vec<u8> {
   let max_len = WIDTH as usize * HEIGHT as usize * 3;
   let mut board = Vec::with_capacity(max_len);
 
   for x in 0..WIDTH {
     for y in 0..HEIGHT {
-      let pixel = state.board
-        .get(&(x, y)).unwrap()
-        .lock();
+      let pixel = state.board.get(&(x, y)).unwrap().lock();
       let pixel_bytes = hex_to_bin(&pixel.color);
       board.extend_from_slice(&pixel_bytes);
     }

@@ -1,8 +1,8 @@
-use sea_orm::{Database, EntityTrait};
 use clap::Parser;
+use sea_orm::{Database, EntityTrait};
 
 use yur_paintboard::{
-  consts::{WIDTH, HEIGHT},
+  consts::{HEIGHT, WIDTH},
   entities::prelude::*,
   pixel::hex_to_bin,
 };
@@ -21,12 +21,11 @@ struct Args {
 async fn main() {
   let args = Args::parse();
 
-  let db = Database::connect("sqlite:./data.db?mode=rwc").await
+  let db = Database::connect("sqlite:./data.db?mode=rwc")
+    .await
     .expect("Error opening database!");
 
-  let board = Board::find()
-    .all(&db).await
-    .expect("Error fetching board!");
+  let board = Board::find().all(&db).await.expect("Error fetching board!");
 
   let width = WIDTH.into();
   let height = HEIGHT.into();

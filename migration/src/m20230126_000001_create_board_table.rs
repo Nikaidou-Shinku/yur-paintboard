@@ -17,16 +17,15 @@ impl MigrationTrait for Migration {
           .col(ColumnDef::new(Board::Uid).integer().not_null())
           .col(ColumnDef::new(Board::Time).timestamp().not_null())
           .primary_key(Index::create().col(Board::X).col(Board::Y))
-          .to_owned()
-      ).await
+          .to_owned(),
+      )
+      .await
   }
 
   async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
     manager
-      .drop_table(
-        Table::drop()
-          .table(Board::Table).to_owned()
-      ).await
+      .drop_table(Table::drop().table(Board::Table).to_owned())
+      .await
   }
 }
 
