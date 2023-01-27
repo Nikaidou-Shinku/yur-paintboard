@@ -67,6 +67,9 @@ async fn actions(db: &DatabaseConnection) {
     pixel_num += 1;
   }
 
+  let mut paint_info: Vec<_> = paint_info.iter().collect();
+  paint_info.sort_by(|a, b| b.1.cmp(a.1));
+
   println!("Actions ({} users, {pixel_num} pixels):", paint_info.len());
   for user in paint_info {
     println!("UID: {:6}, Number of pixels: {:6}", user.0, user.1);

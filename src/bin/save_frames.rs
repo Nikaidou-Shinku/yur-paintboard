@@ -28,8 +28,8 @@ async fn main() {
     }
   }
 
-  let mut begin_time = Local.with_ymd_and_hms(2023, 1, 14, 14, 0, 0).unwrap();
-  let end_time = Local.with_ymd_and_hms(2023, 1, 16, 14, 0, 0).unwrap();
+  let mut begin_time = Local.with_ymd_and_hms(2023, 1, 21, 17, 0, 0).unwrap();
+  let end_time = Local.with_ymd_and_hms(2023, 1, 23, 17, 0, 0).unwrap();
 
   let mut action_idx = 0;
   let mut pic_idx = 1;
