@@ -28,8 +28,8 @@ async fn main() {
     }
   }
 
-  let mut begin_time = Local.with_ymd_and_hms(2023, 1, 21, 17, 0, 0).unwrap();
-  let end_time = Local.with_ymd_and_hms(2023, 1, 23, 17, 0, 0).unwrap();
+  let mut begin_time = Local.with_ymd_and_hms(2023, 1, 29, 20, 0, 0).unwrap();
+  let end_time = Local.with_ymd_and_hms(2023, 1, 29, 22, 0, 0).unwrap();
 
   let mut action_idx = 0;
   let mut pic_idx = 1;
@@ -54,7 +54,7 @@ async fn main() {
 
     imgbuf.save(format!("./frames/{pic_idx}.png")).unwrap();
 
-    begin_time += chrono::Duration::seconds(20);
+    begin_time += chrono::Duration::seconds(1);
     pic_idx += 1;
   }
 }
