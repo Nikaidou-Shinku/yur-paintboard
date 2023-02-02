@@ -11,7 +11,7 @@ use serde::Deserialize;
 use super::WsState;
 use crate::AppState;
 use yur_paintboard::{
-  consts::{HEIGHT, WIDTH},
+  consts::{BEGIN_TIME, END_TIME, HEIGHT, WIDTH},
   entities::{board, paint},
   pixel::{color_to_hex, hex_to_bin, Pixel},
 };
@@ -156,11 +156,7 @@ pub async fn handle_auth(state: Arc<AppState>, data: &[u8]) -> Option<i32> {
   }
   let raw_token = raw_token.unwrap();
 
-  let token = decode::<Claims>(
-    raw_token,
-    &state.pubkey,
-    &Validation::new(Algorithm::EdDSA),
-  );
+  let token = decode::<Claims>(raw_token, &state.pubkey, &Validation::new(Algorithm::EdDSA));
 
   if let Err(err) = token {
     tracing::warn!(token = raw_token, "Invalid token: {err}");
@@ -200,6 +196,12 @@ pub async fn handle_paint(state: Arc<AppState>, ws_state: &Mutex<WsState>, data:
   let uid = ws_state.lock().uid.unwrap();
 
   let now = Local::now();
+
+  if now.time() < *BEGIN_TIME || now.time() > *END_TIME {
+    tracing::warn!("Painting outside the specified time");
+    ws_state.lock().trash_pack += 1;
+    return;
+  }
 
   // check interval
   let last_paint = {
