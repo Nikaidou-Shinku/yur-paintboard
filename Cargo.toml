@@ -11,6 +11,7 @@ lto = true
 codegen-units = 1
 
 [dependencies]
+lazy_static = "1.4.0"
 uuid = "1.2.2"
 chrono = "0.4.23"
 zstd = "0.12.1"
