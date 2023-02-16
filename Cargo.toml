@@ -45,7 +45,7 @@ features = [
 version = "0.6.1"
 default-features = false
 features = [
-  "http2",
+  "http1",
   "json",
   "ws",
 ]
