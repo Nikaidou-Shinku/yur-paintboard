@@ -5,6 +5,9 @@ authors = ["yurzhang <yurzhang@163.com>"]
 edition = "2021"
 default-run = "yur-paintboard"
 
+[workspace]
+members = [".", "migration"]
+
 [profile.release]
 strip = true
 lto = true
