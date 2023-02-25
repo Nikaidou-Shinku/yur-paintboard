@@ -4,22 +4,16 @@ Just paint freely!
 
 ### Build
 
-Install `sea-orm-cli`: (Only for once)
-
-```bash
-cargo install sea-orm-cli
-```
-
 Build the project:
 
 ```bash
-cargo build -r
+cargo build -r --workspace
 ```
 
 perform the migrations:
 
 ```bash
-DATABASE_URL="sqlite:./data.db?mode=rwc" sea-orm-cli migrate refresh
+./target/release/migration -u "sqlite:./data.db?mode=rwc" refresh
 ```
 
 Setup the board:
@@ -27,6 +21,8 @@ Setup the board:
 ```bash
 ./target/release/setup [-c <COLOR>]
 ```
+
+The color above can be in the format of `#f0f0f0`.
 
 Run the server:
 
