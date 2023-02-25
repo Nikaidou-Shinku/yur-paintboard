@@ -1,8 +1,9 @@
 mod save;
 mod ws;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, process, sync::Arc};
 
+use anyhow::{Context, Result};
 use axum::{routing::get, Router};
 use chrono::{DateTime, Local};
 use jsonwebtoken::DecodingKey;
@@ -27,8 +28,7 @@ pub struct AppState {
   actions: Mutex<Vec<paint::ActiveModel>>,
 }
 
-#[tokio::main]
-async fn main() {
+async fn run() -> Result<()> {
   let target_layer = filter::Targets::new()
     .with_target("sqlx", tracing::Level::ERROR)
     .with_target("yur_paintboard", tracing::Level::INFO);
@@ -44,18 +44,21 @@ async fn main() {
   // TODO(config)
   let pubkey = reqwest::get("https://sso.yurzhang.com/pubkey")
     .await
-    .expect("Error fetching public key")
+    .context("Error fetching public key")?
     .bytes()
     .await
-    .expect("Error decode public key");
+    .context("Error decode public key")?;
 
-  let pubkey = DecodingKey::from_ed_pem(&pubkey).expect("Error loading public key");
+  let pubkey = DecodingKey::from_ed_pem(&pubkey).context("Error decode public key")?;
 
   let db = Database::connect("sqlite:./data.db?mode=rwc")
     .await
-    .expect("Error opening database!");
+    .context("Error opening database!")?;
 
-  let board = Board::find().all(&db).await.expect("Error fetching board!");
+  let board = Board::find()
+    .all(&db)
+    .await
+    .context("Error fetching board!")?;
 
   // TODO(config)
   let (sender, _) = broadcast::channel::<Pixel>(65536);
@@ -93,7 +96,19 @@ async fn main() {
 
   tracing::info!("Listening on 127.0.0.1:2895...");
 
-  let (res, _, _) = futures::future::join3(web_task, save_board_task, save_actions_task).await;
+  futures::future::join3(web_task, save_board_task, save_actions_task)
+    .await
+    .0?;
 
-  res.unwrap();
+  Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+  let res = run().await;
+
+  if let Err(err) = res {
+    eprintln!("{err}");
+    process::exit(1);
+  }
 }

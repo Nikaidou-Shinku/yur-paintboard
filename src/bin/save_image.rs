@@ -13,7 +13,7 @@ use yur_paintboard::{
 #[command(about = "Save the paintboard to an image file.")]
 #[command(version, long_about = None)]
 struct Args {
-  #[arg(short, long, default_value_t = String::from("result.png"))]
+  #[arg(short, long, default_value_t = String::from("result.webp"))]
   output: String,
 }
 

@@ -52,7 +52,7 @@ async fn main() {
       *pixel = image::Rgb(*item.1);
     }
 
-    imgbuf.save(format!("./frames/{pic_idx}.png")).unwrap();
+    imgbuf.save(format!("./frames/{pic_idx}.webp")).unwrap();
 
     begin_time += chrono::Duration::seconds(1);
     pic_idx += 1;
